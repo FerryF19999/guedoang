@@ -1,4 +1,4 @@
-const C = {paper:'#ffffff', ink:'#17191e', muted:'#62666f', line:'#dcdee3', accent:'#244bd7'};
+const C = {paper:'#faf9f5', ink:'#262720', muted:'#62625a', line:'#d9d7ce', accent:'#ae3b24'};
 const sans = 'Arial, Helvetica, sans-serif';
 const graphemes = new Intl.Segmenter('id', {granularity:'grapheme'});
 
