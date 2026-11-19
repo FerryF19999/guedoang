@@ -1,0 +1,10 @@
+node_modules/
+.vercel/
+qa/
+__pycache__/
+dist/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
