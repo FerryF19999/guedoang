@@ -1,0 +1,170 @@
+.card {
+  --topic-bg: #f1ead4;
+  --topic-ink: #5c5133;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(18px, 2.2vw, 28px);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.card[data-topic="Duit"] {
+  --topic-bg: #e2edce;
+  --topic-ink: #3d522a;
+}
+
+.card[data-topic="Pertemanan"] {
+  --topic-bg: #ece4fa;
+  --topic-ink: #594475;
+}
+
+.card[data-topic="Kerja"] {
+  --topic-bg: #dfeaf6;
+  --topic-ink: #344d6a;
+}
+
+.card[data-topic="Makanan"] {
+  --topic-bg: #ffe9c8;
+  --topic-ink: #694727;
+}
+
+.card[data-topic="Hubungan"] {
+  --topic-bg: #fbe0e4;
+  --topic-ink: #743c4c;
+}
+
+.card-top,
+.card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--topic-ink);
+  background: var(--topic-bg);
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.card svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.card .example,
+.card-bottom {
+  color: var(--muted);
+  font-size: .75rem;
+  line-height: 1.45;
+}
+
+.card h3 {
+  margin: 20px 0 18px;
+  font: 700 clamp(1.24rem, 1.65vw, 1.5rem)/1.24 var(--display);
+  letter-spacing: -.028em;
+  overflow-wrap: anywhere;
+}
+
+.card-options {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 20px;
+}
+
+.option-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: .875rem;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+  transition: border-color .15s, background-color .15s;
+}
+
+.choice-mark {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border: 1.5px solid #969588;
+  border-radius: 50%;
+}
+
+.option-preview.is-chosen {
+  border-color: #a4b28a;
+  background: #f0f4e8;
+}
+
+.is-chosen .choice-mark {
+  display: grid;
+  place-content: center;
+  border-color: #456039;
+  background: #456039;
+}
+
+.is-chosen .choice-mark::after {
+  content: "";
+  width: 6px;
+  height: 3px;
+  margin-top: -2px;
+  border: solid white;
+  border-width: 0 0 1.5px 1.5px;
+  transform: rotate(-45deg);
+}
+
+.card-bottom {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: .8125rem;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  .option-preview:hover {
+    border-color: #918c7e;
+    background: var(--paper);
+  }
+
+  .card-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}

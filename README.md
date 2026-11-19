@@ -12,7 +12,7 @@ npm run build
 npm run preview
 ```
 
-Preview: `http://localhost:4174`. Override with `PORT=4180 npm run preview`. Build copies only `index.html` and `src/{app.js,core.js,style.css}` to `dist/`; tests, screenshots, and README are not published. No dependency installation needed.
+Preview: `http://localhost:4174`. Override the port with the `PORT` environment variable. The build copies the page, scripts, styles, illustration and self-hosted fonts to `dist/`. No dependency installation needed.
 
 ## Vercel-ready, NOT deployed
 
@@ -42,8 +42,8 @@ PNG export is client-side. Font rendering and download UI vary across devices. T
 ## Verification
 
 ```sh
-npm test                   # native Node test runner, 4 tests
-npm run build              # 4 static public files
+npm test                   # native Node test runner
+npm run build              # static site and assets
 python3 tests/browser_qa.py # optional: requires Python Playwright + Chromium
 ```
 
