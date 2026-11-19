@@ -12,7 +12,7 @@ test('unvoted card invites without inventing a choice or aggregate',()=>{
  const card=renderResultCard(poll,{votes:{}},canvas());
  assert.equal(card.mode,'invitation');
  assert.equal(card.layout.filter(b=>b.role==='choice').length,0);
- assert.equal(card.layout.filter(b=>['percentage','count','reason'].includes(b.role)).length,0);
+ assert.equal(card.layout.filter(b=>['percentage','count','reason','disclosure'].includes(b.role)).length,0);
  assert.ok(card.layout.some(b=>b.role==='cta'&&b.lines.join(' ')==='Kalau kamu?'));
 });
 test('personal card shows only exact selected option and actual optional reason',()=>{
@@ -20,8 +20,7 @@ test('personal card shows only exact selected option and actual optional reason'
  assert.equal(card.mode,'personal');
  assert.equal(card.layout.find(b=>b.role==='choice').lines.join(''),poll.options[1]);
  assert.equal(card.layout.find(b=>b.role==='reason').lines.join(''),'Biar simpel.');
- assert.ok(!card.layout.some(b=>['percentage','count','option'].includes(b.role)));
- assert.ok(card.layout.find(b=>b.role==='disclosure').lines.join(' ').includes('Demo lokal'));
+ assert.ok(!card.layout.some(b=>['percentage','count','option','disclosure'].includes(b.role)));
  assert.ok(!JSON.stringify(card.layout).includes(poll.options[0]));
 });
 test('absent reason is omitted; invalid and inherited votes never select an option',()=>{

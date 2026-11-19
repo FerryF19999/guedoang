@@ -1,6 +1,12 @@
 import {renderResultCard} from './result-card.js';
-import {topics,examples,validatePoll,encodePoll,decodePoll,vote,results} from './core.js';
-const $=s=>document.querySelector(s);const key='gue-doang-demo-v1';let state={polls:[],votes:{},reports:{}};let activeTopic='Semua',active=null,toastTimer;
+import {topics, examples, validatePoll, encodePoll, decodePoll} from './core.js';
+const $ = selector => document.querySelector(selector);
+let polls = new Map();
+let reports = new Map();
+let activeTopic = 'Semua', active = null, toastTimer;
+let feedReady = false, feedError = '', revision = 0;
+let detailSession = 0;
+let nextPage = null, paging = false;
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
 function button(text,fn,cls='button'){const b=el('button',text,cls);b.type='button';b.onclick=fn;return b}
 function toast(message) {
@@ -12,9 +18,111 @@ function toast(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => notice.classList.remove('visible'), 4500);
 }
-try{const saved=JSON.parse(localStorage.getItem(key));if(saved){state.polls=Array.isArray(saved.polls)?saved.polls.map(validatePoll):[];for(const [id,v] of Object.entries(saved.votes||{})){if(/^[\w-]{1,80}$/.test(id)&&v&&Number.isInteger(v.index)&&v.index>=0&&v.index<4&&typeof v.reason==='string'&&v.reason.length<=160)state.votes[id]=v}for(const [id,r] of Object.entries(saved.reports||{})){if(/^[\w-]{1,80}$/.test(id)&&typeof r==='string')state.reports[id]=r}}}catch{toast('Penyimpanan tidak terbaca. Demo dimulai ulang.')}
-function save(){try{localStorage.setItem(key,JSON.stringify(state));return true}catch{toast('Penyimpanan browser penuh atau diblokir. Perubahan hanya berlaku sementara.');return false}}
-function allPolls(){const map=new Map(examples.map(p=>[p.id,p]));for(const p of state.polls)map.set(p.id,p);return [...map.values()].sort((a,b)=>Number(a.example)-Number(b.example))}
+// Previous releases kept questions and reasons solely in this browser.
+const archive = new Map();
+try {
+  const saved = JSON.parse(localStorage.getItem('gue-doang-demo-v1'));
+  if (saved) {
+    const questions = [...examples, ...(Array.isArray(saved.polls) ? saved.polls : [])];
+    for (const item of questions) {
+      if (!item) continue;
+      if (item.example && !Object.hasOwn(saved.votes || {}, item.id) && !Object.hasOwn(saved.reports || {}, item.id)) continue;
+      try {
+        const poll = validatePoll(item);
+        const vote = Object.hasOwn(saved.votes || {}, poll.id) ? saved.votes[poll.id] : null;
+        poll.myVote = Number.isInteger(vote?.index) && vote.index >= 0 && vote.index < poll.options.length
+          ? {index: vote.index, reason: typeof vote.reason === 'string' ? vote.reason : ''} : null;
+        poll.archived = true;
+        archive.set(poll.id, poll);
+      } catch { /* Other saved questions can still be read. */ }
+    }
+  }
+} catch { /* A fresh public session also works with storage disabled. */ }
+
+async function request(path, method = 'GET', body, headers = {}) {
+  let response;
+  try {
+    response = await fetch('/api/' + path, {
+      method, credentials: 'same-origin', cache: 'no-store',
+      headers: body ? {'Content-Type': 'application/json', ...headers} : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error('Koneksi terputus. Periksa jaringan dan coba lagi.');
+  }
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data) {
+    const message = typeof data?.error === 'string' ? data.error : data?.message;
+    const error = new Error(message || 'Layanan voting belum bisa dihubungi. Coba lagi.');
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+function publicPoll(item) {
+  const poll = validatePoll(item);
+  if (!Array.isArray(item.counts) || item.counts.length !== poll.options.length ||
+      !item.counts.every(n => Number.isSafeInteger(n) && n >= 0)) {
+    throw new Error('Hasil voting gagal dimuat. Coba lagi.');
+  }
+  return {...poll, counts: item.counts, myVote: item.myVote || null, hidden: item.hidden === true};
+}
+
+function totalVotes(poll) {
+  return poll.counts.reduce((sum, count) => sum + count, 0);
+}
+
+function acceptPoll(item) {
+  const poll = publicPoll(item);
+  ++revision;
+  if (polls.has(poll.id)) polls.set(poll.id, poll);
+  else polls = new Map([[poll.id, poll], ...polls]);
+  render();
+  return poll;
+}
+
+async function loadFeed() {
+  const current = ++revision;
+  try {
+    const data = await request('polls');
+    const next = data.polls.map(publicPoll);
+    if (current !== revision) return false;
+    polls = new Map(next.map(poll => [poll.id, poll]));
+    reports = new Map(data.reports.map(report => [report.id, report]));
+    nextPage = data.next || null;
+    feedReady = true;
+    feedError = '';
+    render();
+    return true;
+  } catch (err) {
+    if (current !== revision) return false;
+    feedError = err.message;
+    render();
+    return false;
+  }
+}
+async function loadMore() {
+  if (!nextPage || paging) return;
+  const current = revision;
+  paging = true;
+  render();
+  try {
+    const data = await request('polls?before=' + encodeURIComponent(nextPage));
+    if (current !== revision) return;
+    for (const item of data.polls) {
+      const poll = publicPoll(item);
+      polls.set(poll.id, poll);
+    }
+    nextPage = data.next || null;
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    paging = false;
+    render();
+  }
+}
+
 const topicIconPaths = {
   'Sehari-hari': 'M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5 M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z',
   'Duit': 'M3 8.5 16 4a1.3 1.3 0 0 1 1.7.8l.7 2.4 M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z M21 12h-4a2 2 0 0 0 0 4h4',
@@ -37,7 +145,7 @@ function cardIcon(path) {
 }
 
 function pollCard(poll) {
-  const {total} = results(poll, state);
+  const total = totalVotes(poll);
   const card = el('article', undefined, 'card');
   card.dataset.topic = poll.topic;
   card.dataset.pollId = poll.id;
@@ -45,13 +153,13 @@ function pollCard(poll) {
   const top = el('div', undefined, 'card-top');
   const topic = el('span', poll.topic, 'tag');
   topic.prepend(cardIcon(topicIconPaths[poll.topic]));
-  top.append(topic, el('span', poll.example ? 'Contoh' : 'Dilema lokal', 'example'));
+  top.append(topic, el('span', poll.example ? 'Gue Doang?' : 'Komunitas', 'example'));
   card.append(top, el('h3', poll.question));
 
   const options = el('div', undefined, 'card-options');
   poll.options.forEach((answer, index) => {
-    const option = button(answer, () => openPoll(poll, total ? null : index), 'option-preview');
-    if (total && state.votes[poll.id].index === index) {
+    const option = button(answer, () => openFeedPoll(poll, poll.myVote ? null : index), 'option-preview');
+    if (poll.myVote?.index === index) {
       option.classList.add('is-chosen');
       option.setAttribute('aria-label', answer + ', pilihanmu');
     }
@@ -62,23 +170,37 @@ function pollCard(poll) {
   });
 
   const bottom = el('div', undefined, 'card-bottom');
-  const detail = button('Lihat dilema', () => openPoll(poll), 'card-link');
+  const detail = button('Lihat dilema', () => openFeedPoll(poll), 'card-link');
   detail.append(cardIcon('M5 12h14m-6-6 6 6-6 6'));
-  bottom.append(el('span', `${total} pilihan lokal`), detail);
+  const status = total + ' suara' + (poll.myVote ? ' · Sudah memilih' : '');
+  bottom.append(el('span', status), detail);
   card.append(options, bottom);
   return card;
 }
 
 function render() {
-  const polls = allPolls().filter(poll =>
-    !Object.hasOwn(state.reports, poll.id) && (activeTopic === 'Semua' || poll.topic === activeTopic)
+  const visible = [...polls.values()].filter(poll =>
+    !poll.hidden && !reports.has(poll.id) && (activeTopic === 'Semua' || poll.topic === activeTopic)
   );
-  $('#feed-count').textContent = `${polls.length} dilema`;
+  $('#feed-count').textContent = feedReady ? visible.length + ' dilema' : '';
   const feed = $('#feed');
-  feed.replaceChildren(...polls.map(pollCard));
-  if (!polls.length) {
-    feed.append(el('div', 'Belum ada dilema di sini. Lempar yang pertama, yuk.', 'empty'));
+  feed.replaceChildren(...visible.map(pollCard));
+  if (feedError || !feedReady) {
+    const status = el('div', undefined, 'empty');
+    status.setAttribute('role', 'status');
+    status.append(el('p', feedError || 'Memuat dilema…'));
+    if (feedError) status.append(button('Coba lagi', async () => {
+      if (await loadFeed()) openLinkedPoll();
+    }, 'text-button'));
+    feed.prepend(status);
+  } else if (!visible.length) {
+    feed.append(el('div', nextPage ? 'Belum ada dilema dengan topik ini di daftar yang dimuat.' :
+      'Belum ada dilema di sini. Lempar yang pertama, yuk.', 'empty'));
   }
+  const more = $('#more-polls');
+  more.hidden = !nextPage;
+  more.disabled = paging;
+  more.textContent = paging ? 'Memuat…' : 'Muat dilema lainnya';
   for (const filter of $('#filters').children) {
     filter.setAttribute('aria-pressed', String(filter.dataset.topic === activeTopic));
   }
@@ -118,21 +240,64 @@ function addOption(value = '') {
   return input;
 }
 function syncOptions(){const rows=[...$('#option-fields').children];rows.forEach((r,i)=>{r.firstChild.setAttribute('aria-label',`Pilihan ${i+1}`);r.firstChild.placeholder=`Pilihan ${i+1}`;r.lastChild.disabled=rows.length<=2;r.lastChild.setAttribute('aria-label',`Hapus pilihan ${i+1}`)});$('#add-option').disabled=rows.length>=4}
-function compose() {
+let composeSession = 0;
+let creationKey, creationPayload;
+function compose(draft) {
+  composeSession++;
+  creationKey = creationPayload = null;
   $('#compose-form').reset();
   $('#compose-error').textContent = '';
+  $('#compose-form [type="submit"]').disabled = false;
   $('#option-fields').replaceChildren();
-  addOption();
-  addOption();
+  if (draft) {
+    $('#question').value = draft.question;
+    $('#topic').value = draft.topic;
+    draft.options.forEach(addOption);
+  } else {
+    addOption();
+    addOption();
+  }
   show($('#compose'));
   $('#compose').scrollTop = 0;
 }
-for(const id of ['create-top','create-bottom']) $('#'+id).onclick=compose;
+for (const id of ['create-top', 'create-bottom']) $('#' + id).onclick = () => compose();
 for(const t of topics){const o=el('option',t);o.value=t;$('#topic').append(o)}
 $('#add-option').onclick = () => {
   if ($('#option-fields').children.length < 4) addOption().focus();
 };
-$('#compose-form').onsubmit=e=>{e.preventDefault();try{const p=validatePoll({id:globalThis.crypto?.randomUUID?.()||`poll-${Date.now()}-${Math.random().toString(36).slice(2)}`,question:$('#question').value,topic:$('#topic').value,options:[...document.querySelectorAll('#option-fields input')].map(x=>x.value),example:false});state.polls.unshift(p);const stored=save();activeTopic='Semua';render();$('#compose').close();openPoll(p);toast(stored?'Dilema dibuat dan tersimpan di browser ini.':'Dilema dibuat sementara. Penyimpanan tidak tersedia.')}catch(err){$('#compose-error').textContent=err.message}};
+$('#compose-form').onsubmit = async event => {
+  event.preventDefault();
+  const session = composeSession;
+  const submit = $('#compose-form [type="submit"]');
+  if (submit.disabled) return;
+  submit.disabled = true;
+  $('#compose-error').textContent = '';
+  try {
+    const draft = validatePoll({
+      id: 'draft', question: $('#question').value, topic: $('#topic').value,
+      options: [...document.querySelectorAll('#option-fields input')].map(input => input.value),
+    });
+    const payload = {question: draft.question, topic: draft.topic, options: draft.options};
+    const serialized = JSON.stringify(payload);
+    if (serialized !== creationPayload) {
+      creationPayload = serialized;
+      creationKey = crypto.randomUUID();
+    }
+    await initialLoad;
+    const data = await request('polls', 'POST', payload, {'Idempotency-Key': creationKey});
+    activeTopic = 'Semua';
+    const poll = acceptPoll(data.poll);
+    if (session === composeSession && $('#compose').open) {
+      $('#compose').close();
+      openPoll(poll);
+    }
+    toast('Dilema sudah terbit.');
+  } catch (err) {
+    if (session === composeSession) $('#compose-error').textContent = err.message;
+  } finally {
+    if (session === composeSession) submit.disabled = false;
+  }
+};
 function voteForm(poll, selected) {
   const form = el('form');
   form.id = 'vote-form';
@@ -163,82 +328,155 @@ function voteForm(poll, selected) {
   const submit = el('button', 'Pilih & lihat hasil', 'button coral full');
   submit.type = 'submit';
   form.append(options, label, reason, error, submit);
-  form.onsubmit = event => {
+  form.onsubmit = async event => {
     event.preventDefault();
+    if (submit.disabled) return;
+    submit.disabled = true;
+    error.textContent = '';
+    const chosen = form.querySelector('input:checked');
     try {
-      const chosen = form.querySelector('input:checked');
-      state = vote(state, poll, chosen ? Number(chosen.value) : -1, reason.value);
-      save();
-      render();
-      openPoll(poll);
+      const data = await request('vote', 'POST', {id: poll.id, index: Number(chosen.value), reason: reason.value.trim()});
+      const updated = acceptPoll(data.poll);
+      if ($('#detail').open && active?.id === poll.id) openPoll(updated);
     } catch (err) {
       error.textContent = err.message;
+      if (err.status === 409 && await loadFeed() && polls.get(poll.id)?.myVote &&
+          $('#detail').open && active?.id === poll.id) openPoll(polls.get(poll.id));
+    } finally {
+      submit.disabled = false;
     }
   };
   return form;
 }
 
-function pollResults(poll, result) {
+function pollResults(poll) {
   const content = document.createDocumentFragment();
-  content.append(el('p', '1 pilihan lokal di browser ini.', 'muted'));
+  const total = totalVotes(poll);
+  content.append(el('p', total + ' suara dari semua pemilih.', 'muted'));
   const answers = el('div', undefined, 'result-list');
   poll.options.forEach((answer, index) => {
-    const selected = index === state.votes[poll.id].index;
+    const selected = index === poll.myVote.index;
+    const percent = total ? Math.round(100 * poll.counts[index] / total) : 0;
     const row = el('div', undefined, selected ? 'result-row is-selected' : 'result-row');
     const fill = el('div', undefined, 'result-fill');
-    fill.style.width = `${result.percentages[index]}%`;
+    fill.style.width = percent + '%';
     const label = el('div', undefined, 'result-label');
     const name = el('span', answer);
     if (selected) {
       const marker = el('small', 'Pilihanmu', 'own-choice');
       name.append(marker);
     }
-    label.append(name, el('b', `${result.percentages[index]}%`));
+    label.append(name, el('b', percent + '%'));
     row.append(fill, label);
     answers.append(row);
   });
   content.append(answers);
-  const reason = state.votes[poll.id].reason;
+  const reason = poll.myVote.reason;
   if (reason) content.append(el('h3', 'Alasanmu'), el('p', reason, 'reason'));
-  else content.append(el('p', 'Kamu memilih tanpa menambahkan alasan.', 'result-caption'));
+  const refresh = button('Perbarui hasil', async () => {
+    refresh.disabled = true;
+    try {
+      const data = await request('polls?id=' + encodeURIComponent(poll.id));
+      const latest = acceptPoll(data.poll);
+      if ($('#detail').open && active?.id === poll.id) openPoll(latest);
+    } catch (err) { toast(err.message); }
+    finally { refresh.disabled = false; }
+  }, 'text-button');
+  content.append(refresh);
   return content;
 }
 
+async function openFeedPoll(poll, selected = null) {
+  openPoll(poll, selected);
+  const session = detailSession;
+  const current = revision;
+  try {
+    const data = await request('polls?id=' + encodeURIComponent(poll.id));
+    if (!$('#detail').open || session !== detailSession || current !== revision) return;
+    const updated = publicPoll(data.poll);
+    if (updated.hidden) {
+      polls.set(poll.id, updated);
+      render();
+      $('#detail').close();
+      toast('Dilema ini disembunyikan dari daftarmu.');
+      return;
+    }
+    const changed = updated.counts.some((count, i) => count !== poll.counts[i]) ||
+      updated.myVote?.index !== poll.myVote?.index;
+    if (!changed) return;
+    polls.set(updated.id, updated);
+    render();
+    // Existing input and reason stay in place while a visitor is deciding.
+    if (updated.myVote) openPoll(updated);
+  } catch (err) {
+    if ($('#detail').open && session === detailSession) toast(err.message);
+  }
+}
+
 function openPoll(poll, selected = null) {
+  ++detailSession;
   active = poll;
-  $('#detail-topic').textContent = `${poll.topic} · ${poll.example ? 'Contoh' : 'Dilema lokal'}`;
+  $('#detail-topic').textContent = poll.topic + (poll.archived ? ' · Arsip pribadi' : '');
   const body = $('#detail-body');
   const title = el('h2', poll.question);
   title.id = 'detail-title';
   title.tabIndex = -1;
   body.replaceChildren(title);
-  const result = results(poll, state);
-  if (result.total) body.append(pollResults(poll, result));
-  else body.append(el('p', 'Pilih satu jawaban.', 'muted'), voteForm(poll, selected));
-
+  if (poll.archived) {
+    body.append(el('p', 'Arsip pribadi dari versi sebelumnya.', 'muted'));
+    if (poll.myVote) {
+      body.append(el('h3', 'Pilihanmu'), el('p', poll.options[poll.myVote.index], 'reason'));
+      if (poll.myVote.reason) body.append(el('h3', 'Alasanmu'), el('p', poll.myVote.reason, 'reason'));
+    }
+    body.append(button('Buat versi publik', () => {
+      $('#detail').close();
+      compose(poll);
+    }, 'button coral full'));
+    body.append(el('p', 'Periksa pertanyaan dan opsi sebelum menerbitkan. Pilihan lama dan alasanmu tetap pribadi.', 'result-caption'));
+  } else if (poll.myVote) {
+    body.append(pollResults(poll));
+  } else {
+    body.append(el('p', 'Pilih satu jawaban.', 'muted'), voteForm(poll, selected));
+  }
   const actions = el('div', undefined, 'actions');
   actions.append(
-    button(result.total ? 'Bagikan pilihanku' : 'Bagikan pertanyaan', () => download(poll)),
+    button(poll.myVote ? 'Bagikan pilihanku' : 'Bagikan pertanyaan', () => download(poll)),
     button('Salin tautan', () => share(poll))
   );
-  const pngHint = result.total
-    ? 'PNG berisi pilihanmu' + (state.votes[poll.id].reason ? ' dan alasanmu.' : '.')
-    : 'PNG berisi ajakan menjawab.';
-  body.append(
-    actions,
-    el('p', pngHint + ' Tautan berisi pertanyaan dan opsi.', 'result-caption'),
-    el('p', 'Demo ini belum terhubung ke server bersama. Hasil hanya ada di browser ini.', 'result-caption'),
-    button('Laporkan & sembunyikan', () => report(poll), 'text-button')
-  );
+  const pngHint = poll.myVote
+    ? 'PNG berisi pilihanmu' + (poll.myVote.reason ? ' dan alasanmu.' : '.')
+    : 'PNG berisi pertanyaan.';
+  body.append(actions, el('p', pngHint, 'result-caption'));
+  if (!poll.archived) body.append(button('Laporkan & sembunyikan', () => report(poll), 'text-button'));
   const dialog = $('#detail');
   show(dialog);
   dialog.scrollTop = 0;
   title.focus({preventScroll: true});
 }
-async function share(p){const url=new URL(location.origin+location.pathname);url.hash='poll='+encodePoll(p);try{await navigator.clipboard.writeText(url.href);toast('Tautan tersalin. Yang dibagikan hanya pertanyaannya.')}catch{let input=$('#share-link');if(!input){input=el('input',undefined,'link-fallback');input.id='share-link';input.readOnly=true;input.setAttribute('aria-label','Tautan dilema — salin manual');$('#detail-body').append(input)}input.value=url.href;input.focus();input.select();toast('Salin tautan dari kotak yang muncul.')}}
+async function share(poll) {
+  const url = new URL(location.pathname, location.origin);
+  url.hash = poll.archived ? 'poll=' + encodePoll(poll) : 'id=' + encodeURIComponent(poll.id);
+  try {
+    await navigator.clipboard.writeText(url.href);
+    toast('Tautan dilema tersalin.');
+  } catch {
+    let input = $('#share-link');
+    if (!input) {
+      input = el('input', undefined, 'link-fallback');
+      input.id = 'share-link';
+      input.readOnly = true;
+      input.setAttribute('aria-label', 'Tautan dilema untuk disalin');
+      $('#detail-body').append(input);
+    }
+    input.value = url.href;
+    input.focus();
+    input.select();
+    toast('Salin tautan dari kotak yang muncul.');
+  }
+}
 let shareMascots;
 async function download(poll) {
-  const votesAtClick = state.votes;
+  const votesAtClick = poll.myVote ? {[poll.id]: poll.myVote} : {};
   try {
     const mark = document.querySelector('.site-header .logo img');
     if (!shareMascots || (shareMascots.complete && !shareMascots.naturalWidth)) {
@@ -266,7 +504,7 @@ async function download(poll) {
     link.download = `gue-doang-${mode === 'personal' ? 'pilihanku' : 'pertanyaan'}-${poll.id}.png`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast(mode === 'personal' ? 'PNG pilihanmu dibuat, berlabel Demo lokal.' : 'PNG ajakan dibuat. Belum ada pilihan yang dibagikan.');
+    toast(mode === 'personal' ? 'Kartu pilihanmu siap diunduh.' : 'Kartu pertanyaan siap diunduh.');
   } catch {
     toast('Kartu gagal dibuat. Coba browser lain.');
   }
@@ -281,21 +519,142 @@ function info(title) {
   heading.focus({preventScroll: true});
   return body;
 }
-function report(p){$('#detail').close();const b=info('Bantu jaga ruang ini.');b.append(el('p','Laporan demo tidak dikirim ke moderator. Dilema akan disembunyikan hanya di browser ini.'));const form=el('form');const label=el('label','Alasan laporan');label.htmlFor='report-reason';const select=el('select');select.id='report-reason';for(const t of ['Spam atau promosi','Merendahkan / ujaran kebencian','Data pribadi','Konten tidak pantas','Lainnya'])select.append(el('option',t));const submit=el('button','Simpan laporan & sembunyikan','button dark full');submit.style.marginTop='20px';submit.type='submit';form.append(label,select,submit);form.onsubmit=e=>{e.preventDefault();state.reports[p.id]=select.value;save();render();$('#info').close();toast('Disembunyikan di browser ini. Laporan tidak dikirim.')};b.append(form)}
+function report(poll) {
+  $('#detail').close();
+  const body = info('Laporkan dilema');
+  body.append(el('p', 'Alasan laporan dikirim ke pengelola. Dilema akan disembunyikan dari daftarmu.'));
+  const form = el('form');
+  const label = el('label', 'Alasan laporan');
+  label.htmlFor = 'report-reason';
+  const select = el('select');
+  select.id = 'report-reason';
+  for (const reason of ['Spam atau promosi', 'Merendahkan / ujaran kebencian', 'Data pribadi', 'Konten tidak pantas', 'Lainnya']) {
+    select.append(el('option', reason));
+  }
+  const error = el('p', undefined, 'form-error');
+  error.setAttribute('role', 'alert');
+  const submit = el('button', 'Simpan laporan & sembunyikan', 'button dark full');
+  submit.type = 'submit';
+  form.append(label, select, error, submit);
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    submit.disabled = true;
+    error.textContent = '';
+    const reason = select.value;
+    try {
+      await request('report', 'POST', {id: poll.id, reason});
+      ++revision;
+      reports.set(poll.id, {id: poll.id, question: poll.question, reason});
+      render();
+      if (form.isConnected) $('#info').close();
+      toast('Laporan tersimpan. Dilema disembunyikan dari daftarmu.');
+    } catch (err) { error.textContent = err.message; }
+    finally { submit.disabled = false; }
+  };
+  body.append(form);
+}
+
 function showAbout() {
   const body = info('Cara kerja');
   const list = el('ul');
-  const notes = [
-    'Setiap contoh mulai dari nol pilihan. Kamu juga bisa bikin dilema sendiri.',
-    'Kamu bisa pilih sekali per dilema di browser ini. Menghapus data browser juga menghapus pilihan dan alasanmu.',
-    'Tautan memuat pertanyaan dan opsi. Siapa pun yang punya tautannya bisa membacanya, jadi hindari informasi pribadi.',
-    'Sebelum memilih, kartu PNG berisi pertanyaan. Sesudah memilih, kartu berisi pilihan dan alasanmu jika diisi.',
-    'Semua hasil dan laporan disimpan di browser ini. Belum ada perhitungan suara bersama atau moderator aktif.'
-  ];
-  for (const note of notes) list.append(el('li', note));
+  for (const note of [
+    'Lempar pertanyaan untuk diterbitkan di daftar publik, atau pilih salah satu dilema yang ada.',
+    'Setiap browser bisa memilih sekali per dilema. Setelah memilih, kamu bisa melihat perolehan suara dari semua perangkat.',
+    'Cookie mengingat pilihanmu di browser ini. Alasanmu hanya tampil untukmu, kecuali kamu membagikannya lewat kartu PNG.',
+    'Salin tautan agar orang lain bisa membuka dan menjawab dilema yang sama.',
+  ]) list.append(el('li', note));
   body.append(list);
 }
 for (const trigger of document.querySelectorAll('[data-about]')) trigger.onclick = showAbout;
-$('#moderation').onclick=()=>{const b=info('Beda pendapat, tetap baik.');b.append(el('p','Jangan unggah data pribadi, ancaman, kebencian, atau tuduhan terhadap individu. Moderasi demo hanya menyembunyikan dilema di perangkat ini; tidak ada laporan yang dikirim.'));const entries=Object.entries(state.reports);b.append(el('h3',`Laporan lokal (${entries.length})`));if(!entries.length)b.append(el('p','Belum ada laporan tersimpan.'));for(const [id,reason] of entries){const p=allPolls().find(p=>p.id===id);const row=el('div',undefined,'hidden-report');row.append(el('b',p?.question||'Dilema tidak tersedia'),el('p',reason),button('Tampilkan lagi',()=>{delete state.reports[id];save();render();$('#moderation').click()},'text-button'));b.append(row)}};
-function importHash(){if(!location.hash.startsWith('#poll='))return;try{const p=decodePoll(location.hash.slice(6));const existing=allPolls().find(x=>x.id===p.id);if(existing&&(existing.question!==p.question||existing.topic!==p.topic||JSON.stringify(existing.options)!==JSON.stringify(p.options)))throw Error('Identitas tautan bentrok dengan dilema tersimpan.');if(!existing){state.polls.unshift({...p,example:false});save()}$('#shared-note').hidden=false;$('#shared-note').textContent='Dilema dari tautan. Pertanyaannya sama, pilihanmu tetap lokal — bukan voting bersama.';render();if(!Object.hasOwn(state.reports,p.id))openPoll(existing||p);else toast('Dilema ini kamu sembunyikan. Pulihkan lewat laporan lokal.')}catch(err){toast(err.message)}}
-render();importHash();addEventListener('hashchange',importHash);
+
+function showReports() {
+  const body = info('Aturan & laporan');
+  body.append(el('p', 'Hindari data pribadi, ancaman, kebencian, dan tuduhan terhadap individu. Laporkan dilema yang melanggar lewat halaman dilemanya.'));
+  body.append(el('h3', 'Laporanmu'));
+  if (!feedReady || feedError) body.append(el('p', 'Daftar laporan belum bisa dimuat.'));
+  else if (!reports.size) body.append(el('p', 'Belum ada laporan.'));
+  for (const entry of reports.values()) {
+    const row = el('div', undefined, 'hidden-report');
+    row.append(el('b', entry.question || polls.get(entry.id)?.question || 'Dilema tersembunyi'), el('p', entry.reason));
+    const restore = button('Tampilkan lagi', async () => {
+      restore.disabled = true;
+      try {
+        await request('report', 'DELETE', {id: entry.id});
+        ++revision;
+        reports.delete(entry.id);
+        const poll = polls.get(entry.id);
+        if (poll) poll.hidden = false;
+        render();
+        if (row.isConnected) showReports();
+      } catch (err) { toast(err.message); }
+      finally { restore.disabled = false; }
+    }, 'text-button');
+    row.append(restore);
+    body.append(row);
+  }
+}
+$('#moderation').onclick = showReports;
+
+if (archive.size) {
+  const link = $('#archive');
+  link.hidden = false;
+  link.onclick = () => {
+    const body = info('Arsip perangkat');
+    for (const poll of archive.values()) {
+      const row = el('div', undefined, 'hidden-report');
+      row.append(button(poll.question, () => {
+        $('#info').close();
+        openPoll(poll);
+      }, 'text-button'));
+      body.append(row);
+    }
+  };
+}
+
+function sameQuestion(a, b) {
+  return a.question === b.question && a.topic === b.topic &&
+    a.options.length === b.options.length && a.options.every((option, index) => option === b.options[index]);
+}
+
+async function openLinkedPoll() {
+  await initialLoad;
+  const hash = location.hash;
+  const note = $('#shared-note');
+  note.hidden = true;
+  const isOldLink = hash.startsWith('#poll=');
+  if (!isOldLink && !hash.startsWith('#id=')) return;
+  try {
+    const old = isOldLink ? decodePoll(hash.slice(6)) : null;
+    const id = old ? old.id : decodeURIComponent(hash.slice(4));
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error('Tautan dilema tidak valid.');
+    let poll;
+    try { poll = publicPoll((await request('polls?id=' + encodeURIComponent(id))).poll); }
+    catch (err) {
+      if (!old) throw err;
+      // Legacy links contain the full original question, even if it was never published.
+    }
+    if (location.hash !== hash) return;
+    if (old && (!poll || !sameQuestion(old, poll))) {
+      const saved = archive.get(id);
+      poll = saved && sameQuestion(saved, old) ? saved : {...old, myVote: null, archived: true};
+    }
+    if (poll.hidden || (!poll.archived && reports.has(id))) {
+      throw new Error('Dilema ini kamu sembunyikan. Pulihkan lewat Aturan & laporan.');
+    }
+    openPoll(poll);
+  } catch (err) {
+    if (location.hash !== hash) return;
+    note.textContent = err.message;
+    note.hidden = false;
+  }
+}
+
+render();
+$('#more-polls').onclick = loadMore;
+const initialLoad = loadFeed();
+initialLoad.then(openLinkedPoll);
+addEventListener('hashchange', openLinkedPoll);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && feedReady && !document.querySelector('dialog[open]')) loadFeed();
+});

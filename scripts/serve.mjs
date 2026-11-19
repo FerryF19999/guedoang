@@ -1,9 +1,11 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
+import { handleApi } from '../server/http.js';
 
 const root = resolve('dist');
 const port = Number(process.env.PORT || 4174);
+const host = process.env.HOST || '0.0.0.0';
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -13,9 +15,13 @@ const types = {
   '.woff2': 'font/woff2',
 };
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    if (pathname.startsWith('/api/')) {
+      await handleApi(req, res);
+      return;
+    }
     const file = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(root + sep)) {
       res.writeHead(403);
@@ -34,6 +40,6 @@ http.createServer(async (req, res) => {
     res.writeHead(404);
     res.end('Not found');
   }
-}).listen(port, '0.0.0.0', () => {
-  console.log(`Gue Doang? preview listening on 0.0.0.0:${port}`);
+}).listen(port, host, () => {
+  console.log(`Gue Doang? preview listening on ${host}:${server.address().port}`);
 });

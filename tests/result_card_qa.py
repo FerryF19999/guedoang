@@ -1,15 +1,16 @@
 """Personal-card UI downloads + Chromium canvas content/boundary regression."""
 from pathlib import Path
 import json, struct
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
+from preview import preview, chromium
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'qa'; OUT.mkdir(exist_ok=True)
-with sync_playwright() as p:
-    browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
+with preview() as origin, sync_playwright() as p:
+    browser=chromium(p)
     context=browser.new_context(viewport={'width':390,'height':844},accept_downloads=True)
     page=context.new_page(); errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
-    assert page.goto('http://localhost:4174/').status==200
+    assert page.goto(origin).status==200
     downloads={}
     def download(name, voted=True):
         label='Bagikan pilihanku' if voted else 'Bagikan pertanyaan'
@@ -21,28 +22,28 @@ with sync_playwright() as p:
         width,height=struct.unpack('>II',raw[16:24])
         assert width==1080 and 560<=height<=2200
         downloads[name]={'bytes':len(raw),'dimensions':[width,height],'source':'UI download'}
-    page.locator('.card').first.get_by_role('button',name='Lihat dilema').click()
+    page.locator('[data-poll-id="contoh-split-bill"]').get_by_role('button',name='Lihat dilema').click()
     assert page.get_by_role('button',name='Bagikan pilihanku',exact=True).count()==0
     assert page.locator('#vote-form input:checked').count()==0
-    assert 'belum terhubung ke server bersama' in page.locator('#detail-body').inner_text()
     download('personal-choice-zero.png',False)
     # Even a checked radio and draft reason are NOT a submitted vote.
     page.locator('#vote-form input[value="0"]').check()
     page.locator('#reason').fill('Biar adil, bayar yang kita pesan. Tetap bisa makan bareng tanpa bikin dompet orang lain kepikiran.')
     download('personal-choice-unsubmitted.png',False)
     assert (OUT/'personal-choice-zero.png').read_bytes()==(OUT/'personal-choice-unsubmitted.png').read_bytes()
-    assert page.evaluate("Object.keys(JSON.parse(localStorage.getItem('gue-doang-demo-v1')||'{\"votes\":{}}').votes).length")==0
+    poll = page.request.get(origin + '/api/polls?id=contoh-split-bill').json()['poll']
+    assert sum(poll['counts']) == 0 and poll['myVote'] is None
     page.screenshot(path=str(OUT/'personal-choice-zero-ui.png'))
     page.get_by_role('button',name='Pilih & lihat hasil').click()
-    assert page.get_by_role('button',name='Bagikan pertanyaan',exact=True).count()==0
+    expect(page.get_by_role('button',name='Bagikan pertanyaan',exact=True)).to_have_count(0)
     download('personal-choice-card.png')
     page.screenshot(path=str(OUT/'personal-choice-ui.png'))
-    page.reload();page.locator('.card').first.get_by_role('button',name='Lihat dilema').click()
+    page.reload();page.locator('[data-poll-id="contoh-split-bill"]').get_by_role('button',name='Lihat dilema').click()
     download('personal-choice-reloaded.png')
     assert (OUT/'personal-choice-card.png').read_bytes()==(OUT/'personal-choice-reloaded.png').read_bytes()
     page.locator('#detail .close').click()
     # No-reason path, using the second option rather than an assumed first.
-    page.locator('.card').nth(1).get_by_role('button',name='Lihat dilema').click()
+    page.locator('[data-poll-id="contoh-weekend"]').get_by_role('button',name='Lihat dilema').click()
     page.locator('#vote-form input[value="1"]').check()
     page.get_by_role('button',name='Pilih & lihat hasil').click()
     download('personal-choice-no-reason.png')
@@ -104,7 +105,7 @@ with sync_playwright() as p:
         for(const [role,original] of [['question',poll.question],...(voted?[['choice',poll.options[selected]],['reason',state.votes.stress.reason]]:[])]){
           if(compact(layout.find(b=>b.role===role).lines.join(''))!==compact(original))throw Error('lost text '+role);
         }
-        if(!layout.find(b=>b.role==='disclosure').lines.join(' ').includes('Demo lokal · Bukan hasil komunitas.'))throw Error('missing disclosure');
+        if(layout.some(b=>b.role==='disclosure'||/demo lokal|bukan hasil komunitas/i.test(b.lines.join(' '))))throw Error('unexpected demo footer');
         if(layout.find(b=>b.role==='cta').lines.join(' ')!=='Kalau kamu?')throw Error('missing CTA');
         cases.push({count,selected,kind,height:canvas.height,sizes:layout.map(b=>b.size)});
       }
