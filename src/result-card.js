@@ -153,9 +153,7 @@ export function renderResultCard(poll, state, canvas = document.createElement('c
   for (const item of layout.slice(bodyStart)) item.y += conversationY;
 
   const footerY = canvas.height - footerSpace;
-  block('Kalau kamu?', 'cta', footerY + 75, {w: 545, size: 56});
-  block('Demo lokal · Bukan hasil komunitas.', 'disclosure', footerY + 150,
-    {w: 590, size: 29, family: body, weight: 400, color: secondary});
+  block('Kalau kamu?', 'cta', footerY + 102, {w: 545, size: 56});
 
   ctx.fillStyle = personal ? '#e4d6f6' : '#ffeba7';
   ctx.fillRect(0, 0, canvas.width, canvas.height);

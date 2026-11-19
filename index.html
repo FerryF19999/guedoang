@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#faf9f5">
-  <meta name="description" content="Dari split bill sampai chat yang cuma di-read. Pilih sisi kamu atau lempar dilema sendiri di Gue Doang?, demo polling lokal.">
+  <meta name="description" content="Dari split bill sampai chat yang cuma di-read. Pilih sisi kamu atau lempar dilema sendiri.">
   <title>Gue Doang? — Dilema sehari-hari</title>
   <link rel="icon" href="/src/assets/mark.svg" type="image/svg+xml">
   <link rel="preload" href="/src/assets/fonts/bricolagegrotesque.woff2" as="font" type="font/woff2" crossorigin>
@@ -50,10 +50,11 @@
         <h2 id="feed-title">Dilema di meja<span>.</span></h2>
         <span id="feed-count" aria-live="polite"></span>
       </div>
-      <p class="demo-note"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg><span><strong>Demo lokal.</strong> Pilihanmu tersimpan di browser ini.</span> <button id="about" type="button" data-about>Cara kerja</button></p>
+      <p class="demo-note"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg><span>Pilih sisimu dan lihat hasil voting.</span> <button id="about" type="button" data-about>Cara kerja</button></p>
       <nav class="filters" aria-label="Filter topik" id="filters"></nav>
       <div id="shared-note" class="shared-note" hidden></div>
       <div id="feed" class="feed"></div>
+      <button type="button" id="more-polls" class="text-button" hidden>Muat dilema lainnya</button>
     </section>
 
     <section class="bottom-cta" aria-labelledby="bottom-title">
@@ -63,7 +64,10 @@
   </main>
   <footer class="wrap footer">
     <a class="logo" href="/" aria-label="Gue Doang? Beranda"><img src="/src/assets/mark.svg" width="27" height="27" alt=""><span>gue doang<span class="brand-punctuation">?</span></span></a>
-    <button id="moderation" class="nav-link">Aturan &amp; laporan lokal</button>
+    <div>
+      <button id="archive" class="nav-link" hidden>Arsip perangkat</button>
+      <button id="moderation" class="nav-link">Aturan &amp; laporan</button>
+    </div>
   </footer>
 
   <dialog id="compose" aria-labelledby="compose-title">
@@ -83,7 +87,7 @@
         <button class="text-button" type="button" id="add-option">+ Tambah pilihan</button>
       </fieldset>
       <p class="form-error" id="compose-error" role="alert"></p>
-      <p class="local-explainer">Dilema disimpan di browser ini. Tautan hanya membagikan pertanyaan dan pilihan jawaban.</p>
+      <p class="local-explainer">Pertanyaan dan opsi akan tampil di daftar publik.</p>
       <button type="submit" class="button coral full">Lempar sekarang <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button>
     </form>
   </dialog>
