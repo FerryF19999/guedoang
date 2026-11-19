@@ -2,6 +2,9 @@
 
 [Gue Doang?](https://guedoang.vercel.app/) is a mobile-first public polling app for everyday dilemmas in Indonesia.
 
+<a href="docs/share-cards/pertanyaan.png"><img src="docs/share-cards/pertanyaan.png" width="280" alt="Kartu pertanyaan tentang split bill"></a>
+<a href="docs/share-cards/pilihanku.png"><img src="docs/share-cards/pilihanku.png" width="280" alt="Contoh kartu pilihan pribadi untuk split bill"></a>
+
 ## Run locally
 
 Use Node.js 24 or later.
