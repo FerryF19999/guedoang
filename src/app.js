@@ -236,7 +236,41 @@ function openPoll(poll, selected = null) {
   title.focus({preventScroll: true});
 }
 async function share(p){const url=new URL(location.origin+location.pathname);url.hash='poll='+encodePoll(p);try{await navigator.clipboard.writeText(url.href);toast('Tautan tersalin. Yang dibagikan hanya pertanyaannya.')}catch{let input=$('#share-link');if(!input){input=el('input',undefined,'link-fallback');input.id='share-link';input.readOnly=true;input.setAttribute('aria-label','Tautan dilema — salin manual');$('#detail-body').append(input)}input.value=url.href;input.focus();input.select();toast('Salin tautan dari kotak yang muncul.')}}
-function download(p){try{const {canvas:c,mode}=renderResultCard(p,state);c.toBlob(blob=>{if(!blob){toast('Kartu gagal dibuat. Coba browser lain.');return}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`gue-doang-${mode==='personal'?'pilihanku':'pertanyaan'}-${p.id}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);toast(mode==='personal'?'PNG pilihanmu dibuat, berlabel Demo lokal.':'PNG ajakan dibuat. Belum ada pilihan yang dibagikan.')},'image/png')}catch{toast('Kartu gagal dibuat. Coba browser lain.')}}
+let shareMascots;
+async function download(poll) {
+  const votesAtClick = state.votes;
+  try {
+    const mark = document.querySelector('.site-header .logo img');
+    if (!shareMascots || (shareMascots.complete && !shareMascots.naturalWidth)) {
+      shareMascots = new Image();
+      shareMascots.src = new URL('./assets/share-mascots.webp', import.meta.url);
+    }
+    const mascots = shareMascots;
+    await Promise.allSettled([
+      mark?.decode?.(),
+      mascots.decode?.(),
+      document.fonts?.load('800 64px "Bricolage Grotesque"'),
+      document.fonts?.load('400 32px "DM Sans"'),
+      document.fonts?.load('600 32px "DM Sans"'),
+    ]);
+    const {canvas, mode} = renderResultCard(poll, {votes: votesAtClick}, undefined, {
+      mark: mark?.complete && mark.naturalWidth ? mark : null,
+      mascots: mascots.complete && mascots.naturalWidth ? mascots : null,
+    });
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('PNG encoding failed');
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `gue-doang-${mode === 'personal' ? 'pilihanku' : 'pertanyaan'}-${poll.id}.png`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(mode === 'personal' ? 'PNG pilihanmu dibuat, berlabel Demo lokal.' : 'PNG ajakan dibuat. Belum ada pilihan yang dibagikan.');
+  } catch {
+    toast('Kartu gagal dibuat. Coba browser lain.');
+  }
+}
 function info(title) {
   const heading = $('#info-title');
   heading.textContent = title;

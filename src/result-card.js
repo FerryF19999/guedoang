@@ -1,4 +1,7 @@
-const C = {paper:'#faf9f5', ink:'#262720', muted:'#62625a', line:'#d9d7ce', accent:'#ae3b24'};
+const ink = '#262720';
+const secondary = '#4d4b44';
+const display = '"Bricolage Grotesque", Arial, sans-serif';
+const body = '"DM Sans", Arial, sans-serif';
 const sans = 'Arial, Helvetica, sans-serif';
 const graphemes = new Intl.Segmenter('id', {granularity:'grapheme'});
 
@@ -51,58 +54,137 @@ function balancedLines(ctx, text, width) {
   return best;
 }
 
-// Personal opinion, not a polling dashboard. A missing/invalid vote produces
-// an invitation containing the question only. Aggregate data is never read.
-export function renderResultCard(p, state, canvas=document.createElement('canvas')) {
-  const votes=state?.votes;
-  const v=votes&&Object.hasOwn(votes,p.id)?votes[p.id]:null;
-  const selected=v&&Number.isInteger(v.index)&&v.index>=0&&v.index<p.options.length;
-  const mode=selected?'personal':'invitation';
-  const reason=selected&&typeof v.reason==='string'?v.reason:'';
-  canvas.width=1080;
-  const ctx=canvas.getContext('2d'), layout=[];
-  const block=(text,role,y,{x=72,w=936,size=30,weight='400',color=C.ink,leading=1.25,balance=false,min=size,maxLines=Infinity}={})=>{
+// A speech bubble groups the text that belongs to the person speaking.
+function drawBubble(ctx, top, height) {
+  const left = 72, right = 1008, bottom = top + height, radius = 40;
+  ctx.beginPath();
+  ctx.moveTo(left + radius, top);
+  ctx.lineTo(right - radius, top);
+  ctx.quadraticCurveTo(right, top, right, top + radius);
+  ctx.lineTo(right, bottom - radius);
+  ctx.quadraticCurveTo(right, bottom, right - radius, bottom);
+  ctx.lineTo(right - 100, bottom);
+  ctx.quadraticCurveTo(right - 88, bottom + 28, right - 65, bottom + 52);
+  ctx.quadraticCurveTo(right - 127, bottom + 43, right - 169, bottom);
+  ctx.lineTo(left + radius, bottom);
+  ctx.quadraticCurveTo(left, bottom, left, bottom - radius);
+  ctx.lineTo(left, top + radius);
+  ctx.quadraticCurveTo(left, top, left + radius, top);
+  ctx.closePath();
+  ctx.fillStyle = '#fffdf4';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = ink;
+  ctx.stroke();
+}
+
+export function renderResultCard(poll, state, canvas = document.createElement('canvas'), assets = {}) {
+  const votes = state?.votes;
+  const vote = votes && Object.hasOwn(votes, poll.id) ? votes[poll.id] : null;
+  const personal = Number.isInteger(vote?.index) && vote.index >= 0 && vote.index < poll.options.length;
+  const reason = personal && typeof vote.reason === 'string' ? vote.reason : '';
+  canvas.width = 1080;
+  const ctx = canvas.getContext('2d');
+  const layout = [];
+
+  function block(text, role, y, {x = 72, w = 936, size, min = size, maxLines = Infinity,
+    family = display, weight = 800, color = ink, leading = 1.13, balance = false}) {
     let lines;
-    do{
-      ctx.font=`${weight} ${size}px ${sans}`;
-      lines=balance?balancedLines(ctx,text,w):wrapText(ctx,text,w);
-      if(lines.length<=maxLines||size<=min)break;
-      size-=2;
-    }while(true);
-    const lineHeight=size*leading;
-    const b={x,y,w,h:lines.length*lineHeight,size,lineHeight,lines,font:ctx.font,color,role};
-    layout.push(b);return b;
-  };
-  block('gue doang?','brand',62,{size:30,weight:'700'});
-  const question=block(p.question,'question',154,{size:78,min:64,maxLines:5,weight:'700',leading:1.12,balance:true});
-  let y=question.y+question.h+66;
-  let accent;
-  if(selected){
-    const label=block('Pilihanku','choice-label',y,{x:102,w:906,size:26,color:C.muted});
-    const choice=block(p.options[v.index],'choice',label.y+label.h+14,{x:102,w:906,size:56,min:48,maxLines:3,weight:'700',color:C.accent,leading:1.16,balance:true});
-    accent={x:72,y,w:5,h:choice.y+choice.h-y};
-    y=choice.y+choice.h+38;
-    if(reason.trim()){
-      const b=block(reason,'reason',y,{x:102,w:906,size:32,leading:1.4});
-      y=b.y+b.h+12;
+    for (;;) {
+      ctx.font = `${weight} ${size}px ${family}`;
+      lines = balance ? balancedLines(ctx, text, w) : wrapText(ctx, text, w);
+      if (lines.length <= maxLines || size <= min) break;
+      size = Math.max(min, size - 2);
     }
-  }else{
-    const b=block('Buka dilemanya, lalu pilih sisimu.','invitation',y,{size:32,color:C.muted});
-    y=b.y+b.h;
+    const lineHeight = size * leading;
+    const item = {role, lines, x, y, w, h: lines.length * lineHeight, font: ctx.font,
+      size, lineHeight, color};
+    layout.push(item);
+    return item;
   }
-  // A little breathing room, not a fixed oversized poster. Long content grows
-  // the canvas instead of clipping or reducing everything to unreadable type.
-  const footerY=y+72;
-  block('Kalau kamu?','cta',footerY,{size:42,weight:'700',leading:1.2});
-  const disclosure=block('Demo lokal · Bukan hasil komunitas.','disclosure',footerY+88,{size:24,color:C.muted});
-  canvas.height=Math.ceil(disclosure.y+disclosure.h+64);
-  ctx.fillStyle=C.paper;ctx.fillRect(0,0,canvas.width,canvas.height);
-  if(accent){ctx.fillStyle=C.accent;ctx.fillRect(accent.x,accent.y,accent.w,accent.h);}
-  ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();
-  ctx.moveTo(72,footerY-28);ctx.lineTo(1008,footerY-28);ctx.stroke();
-  for(const b of layout){
-    ctx.font=b.font;ctx.fillStyle=b.color;ctx.textBaseline='top';ctx.textAlign='left';
-    b.lines.forEach((line,i)=>ctx.fillText(line,b.x,b.y+i*b.lineHeight));
+
+  const brandX = assets.mark ? 146 : 72;
+  block('gue doang?', 'brand', 70, {x: brandX, w: 430, size: 46});
+  let topicChip;
+  if (poll.topic) {
+    ctx.font = `600 32px ${body}`;
+    const textWidth = Math.ceil(ctx.measureText(poll.topic).width) + 2;
+    topicChip = {x: 1008 - textWidth - 52, w: textWidth + 52};
+    block(poll.topic, 'topic', 77, {x: topicChip.x + 26, w: textWidth, size: 32, family: body, weight: 600});
   }
-  return {canvas,layout,mode,accent};
+
+  // Measure the conversation first. Short posts share a square format. Longer
+  // posts extend the paper so the question, answer and reason stay readable.
+  const bodyStart = layout.length;
+  let bubbleTop = 0;
+  const inset = {x: 122, w: 836};
+  if (personal) {
+    const question = block(poll.question, 'question', 0,
+      {size: 49, min: 43, maxLines: 4, family: body, weight: 600, leading: 1.19, balance: true});
+    bubbleTop = question.h + 42;
+  }
+  let cursor = bubbleTop + 46;
+  if (personal) {
+    const label = block('Pilihanku', 'choice-label', cursor,
+      {...inset, size: 31, weight: 600, family: body, color: secondary});
+    cursor += label.h + 13;
+  }
+  const spoken = personal ? poll.options[vote.index] : poll.question;
+  const minSize = personal ? 70 : 72;
+  ctx.font = `800 ${minSize}px ${display}`;
+  const shortAnswer = personal && !spoken.includes('\n') && ctx.measureText(spoken).width <= inset.w;
+  const headline = block(spoken, personal ? 'choice' : 'question', cursor, {
+    ...inset, size: 89, min: minSize, maxLines: shortAnswer ? 1 : (personal ? 3 : 6),
+    balance: true, leading: 1.08,
+  });
+  cursor += headline.h;
+  if (reason.trim()) {
+    const explanation = block(reason, 'reason', cursor + 26,
+      {...inset, size: 36, family: body, weight: 400, leading: 1.32});
+    cursor = explanation.y + explanation.h;
+  }
+  const bubbleBottom = cursor + 47;
+  const conversationHeight = bubbleBottom + 52;
+  const contentTop = 200;
+  const footerSpace = 258;
+  canvas.height = Math.ceil(Math.max(1080, contentTop + conversationHeight + footerSpace));
+  const extraSpace = canvas.height - (contentTop + conversationHeight + footerSpace);
+  const conversationY = contentTop + Math.round(extraSpace * .52);
+  for (const item of layout.slice(bodyStart)) item.y += conversationY;
+
+  const footerY = canvas.height - footerSpace;
+  block('Kalau kamu?', 'cta', footerY + 75, {w: 545, size: 56});
+  block('Demo lokal · Bukan hasil komunitas.', 'disclosure', footerY + 150,
+    {w: 590, size: 29, family: body, weight: 400, color: secondary});
+
+  ctx.fillStyle = personal ? '#e4d6f6' : '#ffeba7';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+  ctx.moveTo(72, 155);
+  ctx.lineTo(1008, 155);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = personal ? '#a695b8' : '#bcaa76';
+  ctx.stroke();
+
+  if (assets.mark) ctx.drawImage(assets.mark, 68, 62, 65, 65);
+  if (topicChip) {
+    ctx.fillStyle = personal ? '#efe6fb' : '#fff4cd';
+    ctx.beginPath();
+    ctx.roundRect(topicChip.x, 65, topicChip.w, 62, 31);
+    ctx.fill();
+  }
+  drawBubble(ctx, bubbleTop + conversationY, bubbleBottom - bubbleTop);
+  if (assets.mascots) {
+    const width = Math.min(336, 181 * assets.mascots.naturalWidth / assets.mascots.naturalHeight);
+    const height = width * assets.mascots.naturalHeight / assets.mascots.naturalWidth;
+    ctx.drawImage(assets.mascots, 1008 - width, canvas.height - 68 - height, width, height);
+  }
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  for (const item of layout) {
+    ctx.font = item.font;
+    ctx.fillStyle = item.color;
+    item.lines.forEach((line, index) => ctx.fillText(line, item.x, item.y + index * item.lineHeight));
+  }
+  return {canvas, layout, mode: personal ? 'personal' : 'invitation'};
 }

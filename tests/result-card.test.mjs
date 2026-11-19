@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {wrapText,fitText,renderResultCard} from '../src/result-card.js';
-function canvas(){const ctx=context();for(const k of ['fillRect','beginPath','moveTo','lineTo','stroke','roundRect','save','clip','restore'])ctx[k]=()=>{};return {getContext:()=>ctx};}
+function canvas() {
+  const ctx = context();
+  for (const method of ['fillRect', 'beginPath', 'moveTo', 'lineTo', 'quadraticCurveTo',
+    'closePath', 'stroke', 'fill', 'roundRect', 'drawImage']) ctx[method] = () => {};
+  return {getContext: () => ctx};
+}
 const poll={id:'test',question:'Makan bareng, bayarnya gimana?',topic:'Duit',options:['Bayar pesanan sendiri','Bagi rata']};
 test('unvoted card invites without inventing a choice or aggregate',()=>{
  const card=renderResultCard(poll,{votes:{}},canvas());
@@ -62,4 +67,11 @@ test('short content gets a smaller canvas rather than fixed empty poster space',
  const long=renderResultCard({...poll,question:'W'.repeat(180)},{votes:{}},canvas());
  assert.ok(short.canvas.height<long.canvas.height);
  assert.equal(short.canvas.width,1080);
+});
+test('a short chosen answer fits on one line at display size', () => {
+  const pollWithAnswer = {...poll, options: ['Mending dibagi', 'Bayar sendiri']};
+  const card = renderResultCard(pollWithAnswer, {votes: {test: {index: 0}}}, canvas());
+  const answer = card.layout.find(block => block.role === 'choice');
+  assert.deepEqual(answer.lines, ['Mending dibagi']);
+  assert.ok(answer.size >= 70);
 });
