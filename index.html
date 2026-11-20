@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#faf9f5">
-  <meta name="description" content="Dari split bill sampai chat yang cuma di-read. Pilih sisi kamu atau lempar dilema sendiri.">
+  <meta name="description" content="Dari urusan split bill pas kencan sampai chat yang cuma di-read. Tentukan pilihanmu dan lihat seberapa banyak orang yang sefrekuensi sama lu.">
   <title>Gue Doang? — Dilema sehari-hari</title>
   <link rel="icon" href="/src/assets/mark.svg" type="image/svg+xml">
   <link rel="preload" href="/src/assets/fonts/bricolagegrotesque.woff2" as="font" type="font/woff2" crossorigin>
@@ -17,8 +17,6 @@
   <svg xmlns="http://www.w3.org/2000/svg" class="icon-library" aria-hidden="true">
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
-    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v15m-6-6 6 6 6-6"/></symbol>
-    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-9v.1"/></symbol>
   </svg>
   <a class="skip-link" href="#dilema">Langsung ke dilema</a>
   <header class="site-header">
@@ -36,9 +34,9 @@
   <main class="wrap">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <h1 id="hero-title">Gue doang yang<br><em>mikir gini?</em></h1>
-        <p>Dari split bill sampai chat yang cuma di-read.<br class="desktop-break"> Kamu pilih sisi yang mana?</p>
-        <a class="button dark hero-button" href="#dilema">Jelajahi dilema<svg class="icon" aria-hidden="true"><use href="#i-down"/></svg></a>
+        <h1 id="hero-title">Beneran cuma gue doang yang <em>mikir gini?</em></h1>
+        <p>Dari urusan <em>split bill</em> pas kencan sampai <em>chat</em> yang cuma di-<em>read</em>. Validasi opinimu di sini, mari kita lihat lu ada di pihak mana!</p>
+        <a class="button dark hero-button" href="#dilema">Pilih Sisimu <span aria-hidden="true">🔥</span></a>
       </div>
       <div class="hero-art">
         <img src="/src/assets/split-bill.webp" alt="" width="960" height="640" fetchpriority="high">
@@ -47,10 +45,10 @@
 
     <section class="feed-section" id="dilema" aria-labelledby="feed-title" tabindex="-1">
       <div class="section-heading">
-        <h2 id="feed-title">Dilema di meja<span>.</span></h2>
+        <h2 id="feed-title">Dilema Hari Ini</h2>
         <span id="feed-count" aria-live="polite"></span>
       </div>
-      <p class="demo-note"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg><span>Pilih sisimu dan lihat hasil voting.</span> <button id="about" type="button" data-about>Cara kerja</button></p>
+      <p class="demo-note"><span>Tentukan pilihanmu dan lihat seberapa banyak orang yang sefrekuensi sama lu.</span> <button id="about" type="button" data-about>Cara kerja</button></p>
       <nav class="filters" aria-label="Filter topik" id="filters"></nav>
       <div id="shared-note" class="shared-note" hidden></div>
       <div id="feed" class="feed"></div>
@@ -58,8 +56,11 @@
     </section>
 
     <section class="bottom-cta" aria-labelledby="bottom-title">
-      <h2 id="bottom-title">Punya dilema sendiri?</h2>
-      <button id="create-bottom" class="button dark"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Lempar dilema</button>
+      <div>
+        <h2 id="bottom-title">Punya dilema yang bikin <em>overthinking</em>?</h2>
+        <p>Daripada pusing sendiri, lempar topiknya ke sini biar ketahuan yang mikir gitu lu doang atau banyak juga.</p>
+      </div>
+      <button id="create-bottom" class="button dark"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg>Lempar Dilemamu Di Sini</button>
     </section>
   </main>
   <footer class="wrap footer">
@@ -72,10 +73,10 @@
 
   <dialog id="compose" aria-labelledby="compose-title">
     <div class="dialog-head">
-      <h2 id="compose-title">Lempar dilemamu.</h2>
+      <h2 id="compose-title"><em>Spill</em> Dilemamu di Sini!</h2>
       <button class="close" aria-label="Tutup formulir">×</button>
     </div>
-    <p class="muted">Hindari data pribadi dan tuduhan ke orang tertentu.</p>
+    <p class="muted">Bebas beropini asal aman, ya! Tolong jangan masukin data pribadi, bawa-bawa SARA, atau <em>nyenggol</em> pihak tertentu.</p>
     <form id="compose-form">
       <label for="question">Gue doang yang… <span>10–180 karakter</span></label>
       <textarea id="question" required minlength="10" maxlength="180" placeholder="Gue doang yang lebih suka makan sendirian?" rows="3"></textarea>

@@ -11,6 +11,20 @@ export function encodePoll(p){return btoa(String.fromCharCode(...new TextEncoder
 export function decodePoll(s){if(typeof s!=='string'||s.length>6000)throw Error('Tautan terlalu panjang.');try{return validatePoll(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(s.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0)))))}catch{throw Error('Tautan dilema tidak valid atau rusak.')}}
 export function vote(state,p,index,reason=''){if(Object.hasOwn(state.votes,p.id))throw Error('Kamu sudah memilih di browser ini.');if(!Number.isInteger(index)||index<0||index>=p.options.length)throw Error('Pilih salah satu jawaban.');if(typeof reason!=='string'||reason.trim().length>160)throw Error('Alasan maksimal 160 karakter.');return {...state,votes:{...state.votes,[p.id]:{index,reason:reason.trim()}}}}
 export function results(p,state){const v=state.votes[p.id];const total=v&&Number.isInteger(v.index)&&v.index>=0&&v.index<p.options.length?1:0;const counts=p.options.map((_,i)=>total&&v.index===i?1:0);return {total,counts,percentages:counts.map(n=>n*100)}}
+export function voteReaction(counts, selectedIndex) {
+  const chosen = counts[selectedIndex];
+  if (!chosen) return '';
+
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  if (total === 1) return 'Lu yang pertama milih!';
+  if (chosen > total / 2) return 'Ternyata lu nggak sendirian!';
+  if (chosen === Math.max(...counts)) {
+    const tied = counts.some((count, index) => index !== selectedIndex && count === chosen);
+    return tied ? 'Pilihan lu lagi seri di posisi teratas!' : 'Pilihan lu paling rame sejauh ini!';
+  }
+  return chosen === 1 ? 'Waduh, sejauh ini cuma lu yang pilih ini!' : 'Kalah suara, tapi ada yang sefrekuensi sama lu!';
+}
+
 export const examples=[
  {id:'contoh-split-bill',topic:'Duit',question:'Gue doang yang pengen split bill sesuai pesanan, bukan dibagi rata?',options:['Sesuai pesanan, dong','Bagi rata aja, santai'],example:true},
  {id:'contoh-weekend',topic:'Pertemanan',question:'Gue doang yang lega kalau rencana nongkrong tiba-tiba batal?',options:['Akhirnya bisa rebahan','Yah, padahal udah siap','Tergantung siapa yang ngajak'],example:true},

@@ -36,6 +36,7 @@ with preview() as origin, sync_playwright() as playwright:
     page.locator('#reason').fill(private_reason)
     page.get_by_role('button', name='Pilih & lihat hasil').click()
     expect(page.locator('.result-row')).to_have_count(4)
+    expect(page.locator('#detail-body')).to_contain_text('Lu yang pertama milih!')
     expect(page.locator('.reason')).to_have_text(private_reason)
 
     page.get_by_role('button', name='Salin tautan').click()
@@ -65,6 +66,7 @@ with preview() as origin, sync_playwright() as playwright:
     other.get_by_role('button', name='Pilih & lihat hasil').click()
     expect(other.locator('.result-row')).to_have_count(4)
     expect(other.locator('.result-label b')).to_have_text(['50%', '0%', '50%', '0%'])
+    expect(other.locator('#detail-body')).to_contain_text('Pilihan lu lagi seri di posisi teratas!')
 
     page.goto(link)
     expect(page.locator('.result-label b')).to_have_text(['50%', '0%', '50%', '0%'])

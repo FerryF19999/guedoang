@@ -1,5 +1,5 @@
 import {renderResultCard} from './result-card.js';
-import {topics, examples, validatePoll, encodePoll, decodePoll} from './core.js';
+import {topics, examples, validatePoll, encodePoll, decodePoll, voteReaction} from './core.js';
 const $ = selector => document.querySelector(selector);
 let polls = new Map();
 let reports = new Map();
@@ -352,7 +352,11 @@ function voteForm(poll, selected) {
 function pollResults(poll) {
   const content = document.createDocumentFragment();
   const total = totalVotes(poll);
-  content.append(el('p', total + ' suara dari semua pemilih.', 'muted'));
+  const summary = el('p', undefined, 'muted');
+  const reaction = voteReaction(poll.counts, poll.myVote.index);
+  if (reaction) summary.append(el('strong', reaction), ' ');
+  summary.append(total + ' suara masuk.');
+  content.append(summary);
   const answers = el('div', undefined, 'result-list');
   poll.options.forEach((answer, index) => {
     const selected = index === poll.myVote.index;
