@@ -153,7 +153,14 @@ export function renderResultCard(poll, state, canvas = document.createElement('c
   for (const item of layout.slice(bodyStart)) item.y += conversationY;
 
   const footerY = canvas.height - footerSpace;
-  block('Kalau kamu?', 'cta', footerY + 102, {w: 545, size: 56});
+  if (poll.archived) {
+    block('Kalau kamu?', 'cta', footerY + 102, {w: 545, size: 56});
+  } else {
+    const cta = block(personal ? 'Kita satu tim?' : 'Lu pilih mana?', 'cta', footerY + 78,
+      {w: 545, size: 56, min: 48, maxLines: 1});
+    block('guedoang.vercel.app', 'site', cta.y + cta.h + 6,
+      {w: 545, size: 32, family: body, weight: 600, color: secondary});
+  }
 
   ctx.fillStyle = personal ? '#e4d6f6' : '#ffeba7';
   ctx.fillRect(0, 0, canvas.width, canvas.height);

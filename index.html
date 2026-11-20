@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#faf9f5">
-  <meta name="description" content="Dari urusan split bill pas kencan sampai chat yang cuma di-read. Tentukan pilihanmu dan lihat seberapa banyak orang yang sefrekuensi sama lu.">
+  <meta name="description" content="Split bill sesuai pesanan atau bagi rata? Pilih sisi lu, lihat hasil voting, terus tantang satu temen buat bandingin jawaban.">
+  <meta property="og:title" content="Gue Doang? · Kita satu tim nggak?">
+  <meta property="og:description" content="Pilih jawaban lu dulu. Baru ketahuan berapa orang yang sependapat sama lu.">
+  <meta property="og:type" content="website">
   <title>Gue Doang? — Dilema sehari-hari</title>
   <link rel="icon" href="/src/assets/mark.svg" type="image/svg+xml">
   <link rel="preload" href="/src/assets/fonts/bricolagegrotesque.woff2" as="font" type="font/woff2" crossorigin>
@@ -35,8 +38,12 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
         <h1 id="hero-title">Beneran cuma gue doang yang <em>mikir gini?</em></h1>
-        <p>Dari urusan <em>split bill</em> pas kencan sampai <em>chat</em> yang cuma di-<em>read</em>. Validasi opinimu di sini, mari kita lihat lu ada di pihak mana!</p>
-        <a class="button dark hero-button" href="#dilema">Pilih Sisimu <span aria-hidden="true">🔥</span></a>
+        <p id="hero-intro">Pilih satu dilema. Kira-kira berapa orang yang bakal sependapat sama lu?</p>
+        <div id="hero-starter" hidden>
+          <p id="hero-prompt">Lu cuma pesan es teh, temen lu pesan steak. Pas tagihan datang, bagi rata?</p>
+          <div id="hero-choices" role="group" aria-labelledby="hero-prompt"></div>
+        </div>
+        <a id="hero-feed-link" class="button dark hero-button" href="#dilema">Jelajahi dilema <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
       </div>
       <div class="hero-art">
         <img src="/src/assets/split-bill.webp" alt="" width="960" height="640" fetchpriority="high">

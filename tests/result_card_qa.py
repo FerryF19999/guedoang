@@ -28,6 +28,7 @@ with preview() as origin, sync_playwright() as p:
     download('personal-choice-zero.png',False)
     # Even a checked radio and draft reason are NOT a submitted vote.
     page.locator('#vote-form input[value="0"]').check()
+    page.locator('.vote-reason summary').click()
     page.locator('#reason').fill('Biar adil, bayar yang kita pesan. Tetap bisa makan bareng tanpa bikin dompet orang lain kepikiran.')
     download('personal-choice-unsubmitted.png',False)
     assert (OUT/'personal-choice-zero.png').read_bytes()==(OUT/'personal-choice-unsubmitted.png').read_bytes()
@@ -57,6 +58,7 @@ with preview() as origin, sync_playwright() as p:
         page.get_by_role('textbox',name=f'Pilihan {i+1}',exact=True).fill(opt)
     page.get_by_role('button',name='Lempar sekarang').click()
     page.locator('#vote-form input[value="1"]').check()
+    page.locator('.vote-reason summary').click()
     page.locator('#reason').fill('W'*160)
     page.get_by_role('button',name='Pilih & lihat hasil').click()
     download('personal-choice-long.png')
@@ -68,6 +70,7 @@ with preview() as origin, sync_playwright() as p:
     page.get_by_role('textbox',name='Pilihan 2',exact=True).fill('Ngobrol bareng keluarga 👨‍👩‍👧‍👦')
     page.get_by_role('button',name='Lempar sekarang').click()
     page.locator('#vote-form input[value="1"]').check()
+    page.locator('.vote-reason summary').click()
     page.locator('#reason').fill('Aku pilih ngobrol.\nPelan-pelan, sambil minum café ☕ — 家人.')
     page.get_by_role('button',name='Pilih & lihat hasil').click()
     download('personal-choice-unicode.png')
@@ -106,7 +109,8 @@ with preview() as origin, sync_playwright() as p:
           if(compact(layout.find(b=>b.role===role).lines.join(''))!==compact(original))throw Error('lost text '+role);
         }
         if(layout.some(b=>b.role==='disclosure'||/demo lokal|bukan hasil komunitas/i.test(b.lines.join(' '))))throw Error('unexpected demo footer');
-        if(layout.find(b=>b.role==='cta').lines.join(' ')!=='Kalau kamu?')throw Error('missing CTA');
+        if(layout.find(b=>b.role==='cta').lines.join(' ')!==(voted?'Kita satu tim?':'Lu pilih mana?'))throw Error('wrong CTA');
+        if(layout.find(b=>b.role==='site').lines.join(' ')!=='guedoang.vercel.app')throw Error('missing site');
         cases.push({count,selected,kind,height:canvas.height,sizes:layout.map(b=>b.size)});
       }
       return cases;

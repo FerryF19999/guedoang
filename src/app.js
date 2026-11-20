@@ -6,6 +6,7 @@ let reports = new Map();
 let activeTopic = 'Semua', active = null, toastTimer;
 let feedReady = false, feedError = '', revision = 0;
 let detailSession = 0;
+let shareAttempt = 0;
 let nextPage = null, paging = false;
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
 function button(text,fn,cls='button'){const b=el('button',text,cls);b.type='button';b.onclick=fn;return b}
@@ -172,13 +173,32 @@ function pollCard(poll) {
   const bottom = el('div', undefined, 'card-bottom');
   const detail = button('Lihat dilema', () => openFeedPoll(poll), 'card-link');
   detail.append(cardIcon('M5 12h14m-6-6 6 6-6 6'));
-  const status = total + ' suara' + (poll.myVote ? ' · Sudah memilih' : '');
+  const status = total === 0 ? 'Jadi pemilih pertama' : total.toLocaleString('id-ID') + ' suara' + (poll.myVote ? ' · Sudah memilih' : '');
   bottom.append(el('span', status), detail);
   card.append(options, bottom);
   return card;
 }
 
+function renderHero() {
+  const poll = polls.get('contoh-split-bill');
+  const available = feedReady && !feedError && poll && !poll.hidden && !poll.myVote && !reports.has(poll.id);
+  $('#hero-intro').hidden = Boolean(available);
+  $('#hero-starter').hidden = !available;
+  if (!available) return;
+
+  const choices = $('#hero-choices');
+  if (choices.children.length === poll.options.length &&
+      poll.options.every((label, index) => choices.children[index].textContent === label)) return;
+  choices.replaceChildren(...poll.options.map((label, index) => {
+    const choice = button(label, () => openFeedPoll(polls.get(poll.id), index), 'button dark');
+    choice.setAttribute('aria-haspopup', 'dialog');
+    choice.setAttribute('aria-controls', 'detail');
+    return choice;
+  }));
+}
+
 function render() {
+  renderHero();
   const visible = [...polls.values()].filter(poll =>
     !poll.hidden && !reports.has(poll.id) && (activeTopic === 'Semua' || poll.topic === activeTopic)
   );
@@ -315,19 +335,21 @@ function voteForm(poll, selected) {
     options.append(label);
   });
 
+  const note = el('details', undefined, 'vote-reason');
   const label = el('label', 'Kenapa pilih itu?');
   label.htmlFor = 'reason';
-  label.append(el('span', 'Opsional · Maks. 160 karakter'));
+  label.append(el('span', 'Maks. 160 karakter'));
   const reason = el('textarea');
   reason.id = 'reason';
   reason.maxLength = 160;
   reason.rows = 2;
   reason.placeholder = 'Ceritain alasanmu…';
+  note.append(el('summary', 'Tambah alasan (opsional)'), label, reason);
   const error = el('p', undefined, 'form-error');
   error.setAttribute('role', 'alert');
   const submit = el('button', 'Pilih & lihat hasil', 'button coral full');
   submit.type = 'submit';
-  form.append(options, label, reason, error, submit);
+  form.append(options, note, error, submit);
   form.onsubmit = async event => {
     event.preventDefault();
     if (submit.disabled) return;
@@ -354,8 +376,11 @@ function pollResults(poll) {
   const total = totalVotes(poll);
   const summary = el('p', undefined, 'muted');
   const reaction = voteReaction(poll.counts, poll.myVote.index);
-  if (reaction) summary.append(el('strong', reaction), ' ');
-  summary.append(total + ' suara masuk.');
+  if (reaction) summary.append(el('strong', reaction));
+  if (total > 1) {
+    const chosen = poll.counts[poll.myVote.index].toLocaleString('id-ID');
+    summary.append(' Pilihan lu dapat ' + chosen + ' dari ' + total.toLocaleString('id-ID') + ' suara.');
+  }
   content.append(summary);
   const answers = el('div', undefined, 'result-list');
   poll.options.forEach((answer, index) => {
@@ -390,6 +415,11 @@ function pollResults(poll) {
   return content;
 }
 
+function votePrompt(poll) {
+  const total = totalVotes(poll);
+  return total ? total.toLocaleString('id-ID') + ' suara masuk. Pilih dulu buat lihat hasilnya.' : 'Lu bisa jadi pemilih pertama.';
+}
+
 async function openFeedPoll(poll, selected = null) {
   openPoll(poll, selected);
   const session = detailSession;
@@ -412,14 +442,27 @@ async function openFeedPoll(poll, selected = null) {
     render();
     // Existing input and reason stay in place while a visitor is deciding.
     if (updated.myVote) openPoll(updated);
+    else if ($('#vote-prompt')) $('#vote-prompt').textContent = votePrompt(updated);
   } catch (err) {
     if ($('#detail').open && session === detailSession) toast(err.message);
   }
 }
 
+function readPublicLink(hash) {
+  const params = new URLSearchParams(hash.slice(1));
+  const ids = params.getAll('id');
+  const choices = params.getAll('vs');
+  return {
+    id: hash.startsWith('#id=') && ids.length === 1 ? ids[0] : '',
+    friendChoice: choices.length === 1 && /^[0-9]$/.test(choices[0]) ? Number(choices[0]) : null,
+  };
+}
+
 function openPoll(poll, selected = null) {
   ++detailSession;
   active = poll;
+  const {id, friendChoice} = readPublicLink(location.hash);
+  const challenged = id === poll.id && !poll.archived && friendChoice !== null && friendChoice < poll.options.length;
   $('#detail-topic').textContent = poll.topic + (poll.archived ? ' · Arsip pribadi' : '');
   const body = $('#detail-body');
   const title = el('h2', poll.question);
@@ -438,9 +481,25 @@ function openPoll(poll, selected = null) {
     }, 'button coral full'));
     body.append(el('p', 'Periksa pertanyaan dan opsi sebelum menerbitkan. Pilihan lama dan alasanmu tetap pribadi.', 'result-caption'));
   } else if (poll.myVote) {
+    if (challenged) {
+      const comparison = el('p', undefined, 'challenge-result');
+      comparison.id = 'challenge-result';
+      comparison.append(el('strong', poll.myVote.index === friendChoice ? 'Lu satu tim!' : 'Beda kubu!'),
+        'Temen lu pilih “' + poll.options[friendChoice] + '”.');
+      body.append(comparison);
+    }
     body.append(pollResults(poll));
+    const challenge = el('div', undefined, 'challenge-share');
+    const invite = button('Tantang 1 temen', () => share(poll, true), 'button coral');
+    const hint = el('p', 'Temen lu bisa lihat pilihan lu habis voting. Alasan lu nggak ikut di tautan.', 'result-caption');
+    hint.id = 'challenge-hint';
+    invite.setAttribute('aria-describedby', hint.id);
+    challenge.append(invite, hint);
+    body.append(challenge);
   } else {
-    body.append(el('p', 'Pilih satu jawaban.', 'muted'), voteForm(poll, selected));
+    const prompt = challenged ? el('p', 'Lu bakal satu tim sama temen lu?', 'challenge-prompt') : el('p', votePrompt(poll), 'muted');
+    prompt.id = challenged ? 'challenge-prompt' : 'vote-prompt';
+    body.append(prompt, voteForm(poll, selected));
   }
   const actions = el('div', undefined, 'actions');
   actions.append(
@@ -457,25 +516,42 @@ function openPoll(poll, selected = null) {
   dialog.scrollTop = 0;
   title.focus({preventScroll: true});
 }
-async function share(poll) {
+async function share(poll, challenge = false) {
   const url = new URL(location.pathname, location.origin);
   url.hash = poll.archived ? 'poll=' + encodePoll(poll) : 'id=' + encodeURIComponent(poll.id);
+  const session = detailSession;
+  const attempt = ++shareAttempt;
+  const current = () => session === detailSession && attempt === shareAttempt && $('#detail').open;
+  $('#share-fallback')?.remove();
+  if (challenge) {
+    const index = poll.myVote?.index;
+    if (poll.archived || !Number.isInteger(index) || index < 0 || index >= poll.options.length) return;
+    url.hash += '&vs=' + index;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({title: 'Gue Doang?', text: poll.question + '\nGue udah pilih. Kita satu tim nggak?', url: url.href});
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError' || !current()) return;
+      }
+    }
+  }
   try {
     await navigator.clipboard.writeText(url.href);
-    toast('Tautan dilema tersalin.');
+    if (current()) toast(challenge ? 'Tautan tantangan tersalin. Kirim ke temen lu!' : 'Tautan dilema tersalin.');
   } catch {
-    let input = $('#share-link');
-    if (!input) {
-      input = el('input', undefined, 'link-fallback');
-      input.id = 'share-link';
-      input.readOnly = true;
-      input.setAttribute('aria-label', 'Tautan dilema untuk disalin');
-      $('#detail-body').append(input);
-    }
+    if (!current()) return;
+    const label = el('label', challenge ? 'Salin tautan tantangan ini' : 'Salin tautan dilema ini');
+    label.id = 'share-fallback';
+    label.htmlFor = 'share-link';
+    const input = el('input', undefined, 'link-fallback');
+    input.id = 'share-link';
+    input.readOnly = true;
     input.value = url.href;
+    label.append(input);
+    $('#detail-body .actions').after(label);
     input.focus();
     input.select();
-    toast('Salin tautan dari kotak yang muncul.');
   }
 }
 let shareMascots;
@@ -624,13 +700,14 @@ function sameQuestion(a, b) {
 async function openLinkedPoll() {
   await initialLoad;
   const hash = location.hash;
+  const session = detailSession;
   const note = $('#shared-note');
   note.hidden = true;
   const isOldLink = hash.startsWith('#poll=');
   if (!isOldLink && !hash.startsWith('#id=')) return;
   try {
     const old = isOldLink ? decodePoll(hash.slice(6)) : null;
-    const id = old ? old.id : decodeURIComponent(hash.slice(4));
+    const id = old ? old.id : readPublicLink(hash).id;
     if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error('Tautan dilema tidak valid.');
     let poll;
     try { poll = publicPoll((await request('polls?id=' + encodeURIComponent(id))).poll); }
@@ -638,7 +715,7 @@ async function openLinkedPoll() {
       if (!old) throw err;
       // Legacy links contain the full original question, even if it was never published.
     }
-    if (location.hash !== hash) return;
+    if (location.hash !== hash || session !== detailSession) return;
     if (old && (!poll || !sameQuestion(old, poll))) {
       const saved = archive.get(id);
       poll = saved && sameQuestion(saved, old) ? saved : {...old, myVote: null, archived: true};
@@ -648,7 +725,7 @@ async function openLinkedPoll() {
     }
     openPoll(poll);
   } catch (err) {
-    if (location.hash !== hash) return;
+    if (location.hash !== hash || session !== detailSession) return;
     note.textContent = err.message;
     note.hidden = false;
   }

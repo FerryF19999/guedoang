@@ -151,6 +151,17 @@ dialog .vote-option {
 
 .vote-option:hover { background: var(--paper); }
 .vote-option:has(input:checked) { border-color: #b8492c; background: #fff1e2; }
+.vote-reason { margin-top: 5px; }
+.vote-reason summary {
+  width: fit-content;
+  min-height: 44px;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: .875rem;
+  cursor: pointer;
+}
+.vote-reason summary:hover { color: var(--ink); }
+.vote-reason label { margin-top: 0; }
 .vote-option input {
   flex: none;
   width: 17px;
@@ -194,6 +205,24 @@ dialog .vote-option {
   overflow-wrap: anywhere;
 }
 
+.challenge-prompt, .challenge-result {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-left: 3px solid #c15d39;
+  border-radius: 0 8px 8px 0;
+  background: #fff1e2;
+  font-size: .9375rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.challenge-prompt { font-weight: 600; }
+.challenge-result strong { display: block; }
+.challenge-share { margin-top: 14px; }
+.challenge-share .button { width: 100%; }
+.challenge-share .result-caption { margin-top: 6px; text-align: center; }
+.challenge-share + .actions { margin-top: 12px; padding-top: 0; border: 0; }
+
 .actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -225,7 +254,7 @@ dialog .vote-option {
 #info-body > :last-child { margin-bottom: 0; }
 .hidden-report { margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
 .hidden-report p { margin: 4px 0; color: var(--muted); }
-#detail-body .link-fallback { font-size: .875rem; }
+#detail-body .link-fallback { margin-top: 5px; font-size: .875rem; }
 
 .toast {
   position: fixed;

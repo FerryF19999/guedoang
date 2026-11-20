@@ -13,15 +13,25 @@ test('unvoted card invites without inventing a choice or aggregate',()=>{
  assert.equal(card.mode,'invitation');
  assert.equal(card.layout.filter(b=>b.role==='choice').length,0);
  assert.equal(card.layout.filter(b=>['percentage','count','reason','disclosure'].includes(b.role)).length,0);
- assert.ok(card.layout.some(b=>b.role==='cta'&&b.lines.join(' ')==='Kalau kamu?'));
+ assert.equal(card.layout.find(b=>b.role==='cta').lines.join(' '),'Lu pilih mana?');
+ assert.equal(card.layout.find(b=>b.role==='site').lines.join(''),'guedoang.vercel.app');
 });
 test('personal card shows only exact selected option and actual optional reason',()=>{
  const card=renderResultCard(poll,{votes:{test:{index:1,reason:'Biar simpel.'}}},canvas());
  assert.equal(card.mode,'personal');
  assert.equal(card.layout.find(b=>b.role==='choice').lines.join(''),poll.options[1]);
  assert.equal(card.layout.find(b=>b.role==='reason').lines.join(''),'Biar simpel.');
+ assert.equal(card.layout.find(b=>b.role==='cta').lines.join(' '),'Kita satu tim?');
+ assert.equal(card.layout.find(b=>b.role==='site').lines.join(''),'guedoang.vercel.app');
  assert.ok(!card.layout.some(b=>['percentage','count','option','disclosure'].includes(b.role)));
  assert.ok(!JSON.stringify(card.layout).includes(poll.options[0]));
+});
+test('private archives keep their original prompt and omit the public site',()=>{
+ for(const votes of [{},{test:{index:0}}]) {
+  const card=renderResultCard({...poll,archived:true},{votes},canvas());
+  assert.equal(card.layout.find(b=>b.role==='cta').lines.join(' '),'Kalau kamu?');
+  assert.ok(!card.layout.some(b=>b.role==='site'));
+ }
 });
 test('absent reason is omitted; invalid and inherited votes never select an option',()=>{
  assert.ok(!renderResultCard(poll,{votes:{test:{index:0,reason:''}}},canvas()).layout.some(b=>b.role==='reason'));

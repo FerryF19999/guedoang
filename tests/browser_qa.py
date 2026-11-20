@@ -33,6 +33,7 @@ with preview() as origin, sync_playwright() as playwright:
     expect(page.locator('#detail-title')).to_have_text(question)
     page.locator('#vote-form input[value="2"]').check()
     private_reason = 'Kalau hujan aku langsung pulang.'
+    page.locator('.vote-reason summary').click()
     page.locator('#reason').fill(private_reason)
     page.get_by_role('button', name='Pilih & lihat hasil').click()
     expect(page.locator('.result-row')).to_have_count(4)
@@ -67,6 +68,7 @@ with preview() as origin, sync_playwright() as playwright:
     expect(other.locator('.result-row')).to_have_count(4)
     expect(other.locator('.result-label b')).to_have_text(['50%', '0%', '50%', '0%'])
     expect(other.locator('#detail-body')).to_contain_text('Pilihan lu lagi seri di posisi teratas!')
+    expect(other.locator('#detail-body')).to_contain_text('Pilihan lu dapat 1 dari 2 suara.')
 
     page.goto(link)
     expect(page.locator('.result-label b')).to_have_text(['50%', '0%', '50%', '0%'])
