@@ -134,6 +134,8 @@ h1, h2, h3 { font-family: var(--display); }
   z-index: -1;
 }
 .hero-copy p { max-width: 49ch; margin: 20px 0; font-size: clamp(.95rem, 1.24vw, 1.09rem); line-height: 1.55; color: #4f4937; }
+#hero-prompt { margin-bottom: 5px; }
+#hero-stats { margin-bottom: 13px; font-size: .875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 #hero-choices { display: flex; gap: 8px; }
 #hero-choices .button { padding-inline: 14px; }
 .hero-button { gap: 8px; }

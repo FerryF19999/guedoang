@@ -8,27 +8,45 @@ function canvas() {
   return {getContext: () => ctx};
 }
 const poll={id:'test',question:'Makan bareng, bayarnya gimana?',topic:'Duit',options:['Bayar pesanan sendiri','Bagi rata']};
-test('unvoted card invites without inventing a choice or aggregate',()=>{
- const card=renderResultCard(poll,{votes:{}},canvas());
+test('an unvoted public card shows the total without revealing the split',()=>{
+ const card=renderResultCard({...poll,counts:[10,2]},{votes:{}},canvas());
  assert.equal(card.mode,'invitation');
  assert.equal(card.layout.filter(b=>b.role==='choice').length,0);
- assert.equal(card.layout.filter(b=>['percentage','count','reason','disclosure'].includes(b.role)).length,0);
+ assert.equal(card.layout.find(b=>b.role==='statistic').lines.join(' '),'12 suara masuk');
+ assert.ok(!card.layout.some(b=>b.role==='reason'||b.lines.join(' ').includes('%')));
  assert.equal(card.layout.find(b=>b.role==='cta').lines.join(' '),'Lu pilih mana?');
  assert.equal(card.layout.find(b=>b.role==='site').lines.join(''),'guedoang.vercel.app');
 });
 test('personal card shows only exact selected option and actual optional reason',()=>{
- const card=renderResultCard(poll,{votes:{test:{index:1,reason:'Biar simpel.'}}},canvas());
+ const card=renderResultCard({...poll,counts:[2,1]},{votes:{test:{index:1,reason:'Biar simpel.'}}},canvas());
  assert.equal(card.mode,'personal');
  assert.equal(card.layout.find(b=>b.role==='choice').lines.join(''),poll.options[1]);
  assert.equal(card.layout.find(b=>b.role==='reason').lines.join(''),'Biar simpel.');
  assert.equal(card.layout.find(b=>b.role==='cta').lines.join(' '),'Kita satu tim?');
  assert.equal(card.layout.find(b=>b.role==='site').lines.join(''),'guedoang.vercel.app');
- assert.ok(!card.layout.some(b=>['percentage','count','option','disclosure'].includes(b.role)));
+ assert.equal(card.layout.find(b=>b.role==='statistic').lines.join(' '),'33% · 1 dari 3 suara');
  assert.ok(!JSON.stringify(card.layout).includes(poll.options[0]));
 });
-test('private archives keep their original prompt and omit the public site',()=>{
+test('a card distinguishes zero, the first voter, and an evenly split vote',()=>{
+ for(const [counts,votes,expected] of [
+  [[0,0],{},'0 suara masuk'],
+  [[0,1],{test:{index:1}},'100% · 1 dari 1 suara'],
+  [[500,500],{test:{index:0}},'50% · 500 dari 1.000 suara'],
+ ]) {
+  const card=renderResultCard({...poll,counts},{votes},canvas());
+  assert.equal(card.layout.find(b=>b.role==='statistic').lines.join(' '),expected);
+ }
+});
+test('missing, invalid and inconsistent counts show only the known option count',()=>{
+ for(const counts of [undefined,[],[0],[0,0],[4,0],[-1,1],[0,'1'],[1.5,1],[Number.MAX_SAFE_INTEGER,1]]) {
+  const card=renderResultCard({...poll,counts},{votes:{test:{index:1}}},canvas());
+  assert.equal(card.layout.find(b=>b.role==='statistic').lines.join(' '),'2 pilihan');
+ }
+});
+test('private archives show an option count even if public vote counts are present',()=>{
  for(const votes of [{},{test:{index:0}}]) {
-  const card=renderResultCard({...poll,archived:true},{votes},canvas());
+  const card=renderResultCard({...poll,counts:[8,2],archived:true},{votes},canvas());
+  assert.equal(card.layout.find(b=>b.role==='statistic').lines.join(' '),'2 pilihan');
   assert.equal(card.layout.find(b=>b.role==='cta').lines.join(' '),'Kalau kamu?');
   assert.ok(!card.layout.some(b=>b.role==='site'));
  }

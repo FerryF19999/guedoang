@@ -5,6 +5,8 @@
 <a href="docs/share-cards/pertanyaan.png"><img src="docs/share-cards/pertanyaan.png" width="280" alt="Kartu pertanyaan tentang split bill"></a>
 <a href="docs/share-cards/pilihanku.png"><img src="docs/share-cards/pilihanku.png" width="280" alt="Contoh kartu pilihan pribadi untuk split bill"></a>
 
+The sample cards above use simulated votes.
+
 ## Run locally
 
 Use Node.js 24 or later.
@@ -22,7 +24,7 @@ Open http://localhost:4174. The preview serves both the static site and the poll
 - Anyone can publish a question with two to four distinct options or open a public poll by its link. The six starter questions accept real votes.
 - Votes from different browsers count toward the same totals. A random, HTTP-only cookie identifies the current browser. The database accepts one vote per browser identity and poll. Clearing cookies or using a different browser creates a new identity.
 - Regular poll links contain the poll ID. After voting, visitors can also challenge a friend. The challenge link adds the sender’s chosen option so the friend can compare answers after voting. The optional written reason stays out of the link.
-- The downloadable 1080px-wide PNG includes the question before voting and the visitor’s own answer and optional reason after voting. Long content expands the canvas.
+- Before voting, the 1080px-wide PNG shows the question and total votes received, including zero. After voting, it shows the visitor’s answer, its percentage and count out of the total, and their optional reason. Counts reflect the results loaded in the app. Long content expands the canvas.
 - Reporting a poll records the report and hides it from that visitor’s feed. That visitor can restore it in **Aturan & laporan**.
 - Older browser-only questions and choices remain in the private device archive. To publish an archived question, open it, choose **Buat versi publik**, review the options, and submit. Historic votes and reasons stay private.
 

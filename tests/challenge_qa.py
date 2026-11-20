@@ -37,6 +37,7 @@ with preview() as origin, sync_playwright() as playwright:
     page.goto(origin)
     hero = page.locator('#hero-choices')
     expect(hero.get_by_role('button')).to_have_text(ANSWERS)
+    expect(page.locator('#hero-stats')).to_have_text('2 pilihan · 0 suara')
     hero.get_by_role('button', name=ANSWERS[1], exact=True).click()
     expect(page.locator('#vote-form input[value="1"]')).to_be_checked()
     expect(page.locator('#vote-form input[value="0"]')).not_to_be_checked()
@@ -61,6 +62,7 @@ with preview() as origin, sync_playwright() as playwright:
     challenge_button(page).click()
     payload = page.evaluate('window.sharedData')
     assert payload['url'] == challenge and REASON not in str(payload) and 'files' not in payload, payload
+    assert '2 pilihan' in payload['text'] and ANSWERS[1] not in payload['text']
 
     page.evaluate("""async () => {
         await navigator.clipboard.writeText('unchanged')
@@ -86,11 +88,12 @@ with preview() as origin, sync_playwright() as playwright:
     expect(manual).to_have_value(neutral)
     sender.close()
 
-    for choice, result in [(0, 'Beda kubu!'), (1, 'Lu satu tim!')]:
+    for choice, result, votes_before, chosen_votes in [(0, 'Beda kubu!', 1, 1), (1, 'Lu satu tim!', 2, 2)]:
         recipient = browser.new_context()
         receiver = recipient.new_page()
         receiver.goto(challenge)
         expect(receiver.locator('#challenge-prompt')).to_be_visible()
+        expect(receiver.locator('#challenge-prompt')).to_contain_text(f'{votes_before} suara masuk.')
         expect(receiver.locator('#challenge-prompt')).not_to_contain_text(ANSWERS[1])
         expect(receiver.locator('#challenge-result, .result-row, #vote-form input:checked')).to_have_count(0)
         expect(receiver.locator('#detail-body')).not_to_contain_text(REASON)
@@ -112,6 +115,7 @@ with preview() as origin, sync_playwright() as playwright:
         receiver.goto(origin)
         expect(receiver.locator('#hero-feed-link')).to_be_visible()
         expect(receiver.locator('#hero-choices')).to_be_hidden()
+        expect(receiver.locator('#hero-intro')).to_contain_text(f'{chosen_votes} dari {votes_before + 1} suara.')
         recipient.close()
     browser.close()
     print('PASS: direct hero vote, neutral and challenge links, share fallbacks, private reason, match and mismatch')

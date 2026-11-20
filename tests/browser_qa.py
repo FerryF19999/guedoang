@@ -16,6 +16,7 @@ with preview() as origin, sync_playwright() as playwright:
     page.on('pageerror', lambda error: errors.append(str(error)))
     assert page.goto(origin).status == 200
     expect(page.locator('.card')).to_have_count(6)
+    expect(page.locator('.card-bottom > span')).to_have_text(['0 suara · Jadi yang pertama'] * 6)
     page.screenshot(path=str(OUT / 'mobile-home.png'), full_page=True)
     page.get_by_role('button', name='Duit', exact=True).click()
     expect(page.locator('.card')).to_have_count(1)
@@ -31,6 +32,7 @@ with preview() as origin, sync_playwright() as playwright:
     expect(page.locator('#add-option')).to_be_disabled()
     page.get_by_role('button', name='Lempar sekarang').click()
     expect(page.locator('#detail-title')).to_have_text(question)
+    expect(page.locator('#vote-prompt')).to_contain_text('0 suara masuk.')
     page.locator('#vote-form input[value="2"]').check()
     private_reason = 'Kalau hujan aku langsung pulang.'
     page.locator('.vote-reason summary').click()
@@ -38,6 +40,8 @@ with preview() as origin, sync_playwright() as playwright:
     page.get_by_role('button', name='Pilih & lihat hasil').click()
     expect(page.locator('.result-row')).to_have_count(4)
     expect(page.locator('#detail-body')).to_contain_text('Lu yang pertama milih!')
+    expect(page.locator('#detail-body')).to_contain_text('Pilihan lu dapat 1 dari 1 suara.')
+    expect(page.locator('.result-value small')).to_have_text(['0 suara', '0 suara', '1 suara', '0 suara'])
     expect(page.locator('.reason')).to_have_text(private_reason)
 
     page.get_by_role('button', name='Salin tautan').click()
@@ -60,6 +64,7 @@ with preview() as origin, sync_playwright() as playwright:
     other.goto(link)
     expect(other.locator('#detail-title')).to_have_text(question)
     expect(other.locator('#vote-form input[type=radio]')).to_have_count(4)
+    expect(other.locator('#vote-prompt')).to_contain_text('1 suara masuk.')
     snapshot = second.request.get(origin + '/api/polls?id=' + poll_id).json()['poll']
     assert snapshot['counts'] == [0, 0, 1, 0] and snapshot['myVote'] is None
     assert private_reason not in json.dumps(snapshot)
@@ -67,6 +72,7 @@ with preview() as origin, sync_playwright() as playwright:
     other.get_by_role('button', name='Pilih & lihat hasil').click()
     expect(other.locator('.result-row')).to_have_count(4)
     expect(other.locator('.result-label b')).to_have_text(['50%', '0%', '50%', '0%'])
+    expect(other.locator('.result-value small')).to_have_text(['1 suara', '0 suara', '1 suara', '0 suara'])
     expect(other.locator('#detail-body')).to_contain_text('Pilihan lu lagi seri di posisi teratas!')
     expect(other.locator('#detail-body')).to_contain_text('Pilihan lu dapat 1 dari 2 suara.')
 

@@ -10,10 +10,19 @@ with preview() as origin, sync_playwright() as p:
     context=browser.new_context(viewport={'width':390,'height':844},accept_downloads=True)
     page=context.new_page(); errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
+    page.add_init_script("""(() => {
+      window.cardText = [];
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function(text, ...rest) {
+        if (this.canvas.width === 1080) window.cardText.push(text);
+        return fillText.call(this, text, ...rest);
+      };
+    })()""")
     assert page.goto(origin).status==200
     downloads={}
-    def download(name, voted=True):
+    def download(name, voted=True, expected_stat=None):
         label='Bagikan pilihanku' if voted else 'Bagikan pertanyaan'
+        page.evaluate('window.cardText.length = 0')
         with page.expect_download() as event:
             page.get_by_role('button',name=label,exact=True).click()
         dest=OUT/name; event.value.save_as(dest)
@@ -21,6 +30,8 @@ with preview() as origin, sync_playwright() as p:
         raw=dest.read_bytes(); assert raw[:8]==b'\x89PNG\r\n\x1a\n'
         width,height=struct.unpack('>II',raw[16:24])
         assert width==1080 and 560<=height<=2200
+        statistic = expected_stat or ('100% · 1 dari 1 suara' if voted else '0 suara masuk')
+        assert statistic in page.evaluate('window.cardText'), statistic
         downloads[name]={'bytes':len(raw),'dimensions':[width,height],'source':'UI download'}
     page.locator('[data-poll-id="contoh-split-bill"]').get_by_role('button',name='Lihat dilema').click()
     assert page.get_by_role('button',name='Bagikan pilihanku',exact=True).count()==0
@@ -42,6 +53,16 @@ with preview() as origin, sync_playwright() as p:
     page.reload();page.locator('[data-poll-id="contoh-split-bill"]').get_by_role('button',name='Lihat dilema').click()
     download('personal-choice-reloaded.png')
     assert (OUT/'personal-choice-card.png').read_bytes()==(OUT/'personal-choice-reloaded.png').read_bytes()
+    friend=browser.new_context()
+    other=friend.new_page()
+    other.goto(origin+'/#id=contoh-split-bill')
+    other.locator('#vote-form input[value="1"]').check()
+    other.get_by_role('button',name='Pilih & lihat hasil').click()
+    expect(other.locator('.result-row')).to_have_count(2)
+    friend.close()
+    page.get_by_role('button',name='Perbarui hasil').click()
+    expect(page.locator('.result-label b')).to_have_text(['50%', '50%'])
+    download('personal-choice-tied.png', expected_stat='50% · 1 dari 2 suara')
     page.locator('#detail .close').click()
     # No-reason path, using the second option rather than an assumed first.
     page.locator('[data-poll-id="contoh-weekend"]').get_by_role('button',name='Lihat dilema').click()
@@ -82,6 +103,7 @@ with preview() as origin, sync_playwright() as p:
       for(const count of [2,3,4]) for(const selected of [-1,...Array.from({length:count},(_,i)=>i)]) for(const kind of ['wide','words','literal','unicode','multiline']) {
         const content=kind==='wide'?'W':kind==='words'?'Pilihan panjang dengan kata berbeda ':kind==='literal'?'<img src=x onerror=alert(1)> ':kind==='multiline'?'Baris pertama.\nBaris kedua. ':'界😀 é 👩🏽‍💻 ';
         const poll=validatePoll({id:'stress',topic:'Sehari-hari',question:content.repeat(180).slice(0,180),options:Array.from({length:count},(_,i)=>String(i)+content.repeat(60).slice(0,59))});
+        poll.counts=poll.options.map(()=>1000000);
         const voted=selected>=0;
         const state={votes:voted?{stress:{index:selected,reason:content.repeat(160).slice(0,160)}}:{}};
         const before=JSON.stringify(state);
@@ -102,7 +124,9 @@ with preview() as origin, sync_playwright() as p:
           const a=layout[i],b=layout[j];
           if(a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y)throw Error('overlapping text');
         }
-        if(layout.some(b=>['percentage','count','option'].includes(b.role)))throw Error('aggregate or other options leaked');
+        const total=(count*1000000).toLocaleString('id-ID');
+        const statistic=voted?Math.round(100/count)+'% · 1.000.000 dari '+total+' suara':total+' suara masuk';
+        if(layout.find(b=>b.role==='statistic')?.lines.join(' ')!==statistic)throw Error('incorrect poll tally');
         if(layout.filter(b=>b.role==='choice').length!==(voted?1:0))throw Error('invented/missing choice');
         if(layout.filter(b=>b.role==='reason').length!==(voted?1:0))throw Error('invented/missing reason');
         for(const [role,original] of [['question',poll.question],...(voted?[['choice',poll.options[selected]],['reason',state.votes.stress.reason]]:[])]){
@@ -117,6 +141,6 @@ with preview() as origin, sync_playwright() as p:
     }''')
     assert len(checks)==60
     assert not errors,errors
-    report={'status':'PASS','dimensionPolicy':'1080 wide; content-measured height; complete text and 24px minimum','realUIDownloads':downloads,'canvasCases':checks,'pageErrors':errors,'checks':['unvoted invitation','unsubmitted selection not a vote','real selected option only','optional reason omitted','no aggregate roles','reload preserves identical export','all option indexes','2/3/4 options','Unicode and multiline','literal HTML','maximum content','no text overlap','safe bounds','full text preservation']}
+    report={'status':'PASS','dimensionPolicy':'1080 wide; content-measured height; complete text and 24px minimum','realUIDownloads':downloads,'canvasCases':checks,'pageErrors':errors,'checks':['unvoted invitation','unsubmitted selection not a vote','real selected option only','optional reason omitted','real public totals and chosen share','updated tally after a second vote','reload preserves identical export','all option indexes','2/3/4 options','Unicode and multiline','literal HTML','maximum content','no text overlap','safe bounds','full text preservation']}
     (OUT/'personal-choice-checks.json').write_text(json.dumps(report,indent=2))
     print(json.dumps({'status':report['status'],'canvasCases':len(checks),'downloads':downloads,'pageErrors':errors},indent=2));browser.close()

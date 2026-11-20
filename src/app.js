@@ -173,19 +173,29 @@ function pollCard(poll) {
   const bottom = el('div', undefined, 'card-bottom');
   const detail = button('Lihat dilema', () => openFeedPoll(poll), 'card-link');
   detail.append(cardIcon('M5 12h14m-6-6 6 6-6 6'));
-  const status = total === 0 ? 'Jadi pemilih pertama' : total.toLocaleString('id-ID') + ' suara' + (poll.myVote ? ' · Sudah memilih' : '');
+  const status = total === 0 ? '0 suara · Jadi yang pertama' : total.toLocaleString('id-ID') + ' suara' + (poll.myVote ? ' · Sudah memilih' : '');
   bottom.append(el('span', status), detail);
   card.append(options, bottom);
   return card;
 }
 
+const heroInvite = $('#hero-intro').textContent;
 function renderHero() {
   const poll = polls.get('contoh-split-bill');
-  const available = feedReady && !feedError && poll && !poll.hidden && !poll.myVote && !reports.has(poll.id);
-  $('#hero-intro').hidden = Boolean(available);
+  const visible = feedReady && !feedError && poll && !poll.hidden && !reports.has(poll.id);
+  const available = visible && !poll.myVote;
+  const intro = $('#hero-intro');
+  intro.hidden = Boolean(available);
+  if (!available) {
+    if (visible && poll.myVote) {
+      const chosen = poll.counts[poll.myVote.index].toLocaleString('id-ID');
+      intro.textContent = 'Soal split bill, pilihan lu dapat ' + chosen + ' dari ' + totalVotes(poll).toLocaleString('id-ID') + ' suara.';
+    } else intro.textContent = heroInvite;
+  }
   $('#hero-starter').hidden = !available;
   if (!available) return;
 
+  $('#hero-stats').textContent = poll.options.length + ' pilihan · ' + totalVotes(poll).toLocaleString('id-ID') + ' suara';
   const choices = $('#hero-choices');
   if (choices.children.length === poll.options.length &&
       poll.options.every((label, index) => choices.children[index].textContent === label)) return;
@@ -377,10 +387,8 @@ function pollResults(poll) {
   const summary = el('p', undefined, 'muted');
   const reaction = voteReaction(poll.counts, poll.myVote.index);
   if (reaction) summary.append(el('strong', reaction));
-  if (total > 1) {
-    const chosen = poll.counts[poll.myVote.index].toLocaleString('id-ID');
-    summary.append(' Pilihan lu dapat ' + chosen + ' dari ' + total.toLocaleString('id-ID') + ' suara.');
-  }
+  const chosen = poll.counts[poll.myVote.index].toLocaleString('id-ID');
+  summary.append(' Pilihan lu dapat ' + chosen + ' dari ' + total.toLocaleString('id-ID') + ' suara.');
   content.append(summary);
   const answers = el('div', undefined, 'result-list');
   poll.options.forEach((answer, index) => {
@@ -395,7 +403,9 @@ function pollResults(poll) {
       const marker = el('small', 'Pilihanmu', 'own-choice');
       name.append(marker);
     }
-    label.append(name, el('b', percent + '%'));
+    const stats = el('span', undefined, 'result-value');
+    stats.append(el('b', percent + '%'), el('small', poll.counts[index].toLocaleString('id-ID') + ' suara'));
+    label.append(name, stats);
     row.append(fill, label);
     answers.append(row);
   });
@@ -415,9 +425,11 @@ function pollResults(poll) {
   return content;
 }
 
-function votePrompt(poll) {
+function votePrompt(poll, challenged) {
   const total = totalVotes(poll);
-  return total ? total.toLocaleString('id-ID') + ' suara masuk. Pilih dulu buat lihat hasilnya.' : 'Lu bisa jadi pemilih pertama.';
+  const count = total.toLocaleString('id-ID') + ' suara masuk. ';
+  if (challenged) return count + 'Lu bakal satu tim sama temen lu?';
+  return count + (total ? 'Pilih dulu buat lihat hasilnya.' : 'Lu bisa jadi pemilih pertama.');
 }
 
 async function openFeedPoll(poll, selected = null) {
@@ -441,8 +453,12 @@ async function openFeedPoll(poll, selected = null) {
     polls.set(updated.id, updated);
     render();
     // Existing input and reason stay in place while a visitor is deciding.
-    if (updated.myVote) openPoll(updated);
-    else if ($('#vote-prompt')) $('#vote-prompt').textContent = votePrompt(updated);
+    if (updated.myVote || poll.myVote) openPoll(updated, selected);
+    else {
+      active = updated;
+      const prompt = $('#vote-prompt, #challenge-prompt');
+      prompt.textContent = votePrompt(updated, prompt.id === 'challenge-prompt');
+    }
   } catch (err) {
     if ($('#detail').open && session === detailSession) toast(err.message);
   }
@@ -497,18 +513,19 @@ function openPoll(poll, selected = null) {
     challenge.append(invite, hint);
     body.append(challenge);
   } else {
-    const prompt = challenged ? el('p', 'Lu bakal satu tim sama temen lu?', 'challenge-prompt') : el('p', votePrompt(poll), 'muted');
+    const prompt = el('p', votePrompt(poll, challenged), challenged ? 'challenge-prompt' : 'muted');
     prompt.id = challenged ? 'challenge-prompt' : 'vote-prompt';
     body.append(prompt, voteForm(poll, selected));
   }
   const actions = el('div', undefined, 'actions');
   actions.append(
-    button(poll.myVote ? 'Bagikan pilihanku' : 'Bagikan pertanyaan', () => download(poll)),
+    button(poll.myVote ? 'Bagikan pilihanku' : 'Bagikan pertanyaan', () => download(active)),
     button('Salin tautan', () => share(poll))
   );
-  const pngHint = poll.myVote
-    ? 'PNG berisi pilihanmu' + (poll.myVote.reason ? ' dan alasanmu.' : '.')
-    : 'PNG berisi pertanyaan.';
+  const pngDetails = poll.myVote ? ['pilihanmu'] : ['pertanyaan'];
+  if (poll.myVote?.reason) pngDetails.push('alasanmu');
+  if (!poll.archived) pngDetails.push(poll.myVote ? 'hasil voting' : 'jumlah suara');
+  const pngHint = 'PNG berisi ' + new Intl.ListFormat('id').format(pngDetails) + '.';
   body.append(actions, el('p', pngHint, 'result-caption'));
   if (!poll.archived) body.append(button('Laporkan & sembunyikan', () => report(poll), 'text-button'));
   const dialog = $('#detail');
@@ -529,7 +546,7 @@ async function share(poll, challenge = false) {
     url.hash += '&vs=' + index;
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({title: 'Gue Doang?', text: poll.question + '\nGue udah pilih. Kita satu tim nggak?', url: url.href});
+        await navigator.share({title: 'Gue Doang?', text: poll.question + '\nAda ' + poll.options.length + ' pilihan. Gue udah pilih. Kita satu tim nggak?', url: url.href});
         return;
       } catch (err) {
         if (err?.name === 'AbortError' || !current()) return;

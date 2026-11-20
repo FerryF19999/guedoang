@@ -4,6 +4,7 @@ const display = '"Bricolage Grotesque", Arial, sans-serif';
 const body = '"DM Sans", Arial, sans-serif';
 const sans = 'Arial, Helvetica, sans-serif';
 const graphemes = new Intl.Segmenter('id', {granularity:'grapheme'});
+const number = new Intl.NumberFormat('id-ID');
 
 // Literal canvas text, never HTML. Preserve paragraphs and complete grapheme
 // clusters (including combining marks and family emoji); never ellipsize content.
@@ -78,6 +79,23 @@ function drawBubble(ctx, top, height) {
   ctx.stroke();
 }
 
+function cardStatistic(poll, selected) {
+  const optionsLabel = poll.options.length + ' pilihan';
+  const counts = poll.counts;
+  if (poll.archived || !Array.isArray(counts) || counts.length !== poll.options.length) return optionsLabel;
+  let total = 0;
+  for (const count of counts) {
+    if (!Number.isSafeInteger(count) || count < 0) return optionsLabel;
+    total += count;
+  }
+  if (!Number.isSafeInteger(total)) return optionsLabel;
+  if (selected === null) return number.format(total) + ' suara masuk';
+  const chosen = counts[selected];
+  if (chosen === 0) return optionsLabel;
+  const percent = Math.round(100 * chosen / total);
+  return percent + '% · ' + number.format(chosen) + ' dari ' + number.format(total) + ' suara';
+}
+
 export function renderResultCard(poll, state, canvas = document.createElement('canvas'), assets = {}) {
   const votes = state?.votes;
   const vote = votes && Object.hasOwn(votes, poll.id) ? votes[poll.id] : null;
@@ -144,7 +162,10 @@ export function renderResultCard(poll, state, canvas = document.createElement('c
     cursor = explanation.y + explanation.h;
   }
   const bubbleBottom = cursor + 47;
-  const conversationHeight = bubbleBottom + 52;
+  // The public tally sits outside the speaker's bubble, clear of its tail.
+  const statistic = block(cardStatistic(poll, personal ? vote.index : null), 'statistic', bubbleBottom + 25,
+    {w: 740, size: 44, min: 38, maxLines: 1, weight: 700, color: ink});
+  const conversationHeight = statistic.y + statistic.h;
   const contentTop = 200;
   const footerSpace = 258;
   canvas.height = Math.ceil(Math.max(1080, contentTop + conversationHeight + footerSpace));

@@ -193,7 +193,8 @@ dialog .vote-option {
 
 .result-label span { min-width: 0; overflow-wrap: anywhere; }
 .own-choice { display: block; margin-top: 2px; color: #754521; font-size: .75rem; font-weight: 600; }
-.result-label b { font-variant-numeric: tabular-nums; }
+.result-value { text-align: right; font-variant-numeric: tabular-nums; }
+.result-value small { display: block; color: var(--muted); white-space: nowrap; font-size: .75rem; }
 .reason {
   margin: 0;
   padding: 14px 16px;
